@@ -71,6 +71,16 @@ jobs:
             rm /home/${{ secrets.SSH_USER }}/deploy-backend.tar.gz
             
             cd backend
+
+            # Create production .env file
+            cat <<EOT > .env
+            DATABASE_URL=${{ secrets.DATABASE_URL }}
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            PORT=7070
+            FRONTEND_URL=http://197.243.0.108:7000
+            UPLOAD_DEST=./uploads
+            SUPERADMIN_CREATION_KEY=${{ secrets.SUPERADMIN_CREATION_KEY }}
+            EOT
             
             # Install prod deps
             if ! command -v pnpm &> /dev/null; then
