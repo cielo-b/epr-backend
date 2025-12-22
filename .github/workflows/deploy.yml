@@ -1,0 +1,94 @@
+name: Deploy Backend
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build NestJS app
+        run: pnpm build
+
+      - name: Install sshpass
+        run: sudo apt-get update && sudo apt-get install -y sshpass
+
+      - name: Create deployment package
+        run: |
+          mkdir -p deploy
+          cp -r dist deploy/
+          cp package.json deploy/
+          cp pnpm-lock.yaml deploy/
+          # Copy prisma folder if it exists
+          cp -r prisma deploy/ 2>/dev/null || true
+          tar -czf deploy.tar.gz -C deploy .
+
+      - name: Deploy to Server
+        env:
+          SSHPASS: ${{ secrets.SSH_PASSWORD }}
+        run: |
+          # 1. Transfer File
+          sshpass -e scp -o StrictHostKeyChecking=no -P ${{ secrets.SSH_PORT }} deploy.tar.gz ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/home/${{ secrets.SSH_USER }}/deploy-backend.tar.gz
+
+          # 2. Extract and Restart
+          sshpass -e ssh -o StrictHostKeyChecking=no -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
+            export PATH=$PATH:/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games
+            
+            # Setup directories
+            mkdir -p /home/${{ secrets.SSH_USER }}/rm-soft/backend
+            cd /home/${{ secrets.SSH_USER }}/rm-soft
+
+            # Backup existing
+            if [ -d "backend/dist" ]; then
+              mkdir -p backups/backend
+              tar -czf backups/backend/backup-$(date +%Y%m%d-%H%M%S).tar.gz backend/dist 2>/dev/null || true
+            fi
+            
+            # Extract
+            tar -xzf /home/${{ secrets.SSH_USER }}/deploy-backend.tar.gz -C backend
+            rm /home/${{ secrets.SSH_USER }}/deploy-backend.tar.gz
+            
+            cd backend
+            
+            # Install prod deps
+            if ! command -v pnpm &> /dev/null; then
+                npm install -g pnpm
+            fi
+            pnpm install --prod --frozen-lockfile
+            
+            # Run Migrations (Optional - remove if not needed)
+            if [ -d "prisma" ]; then
+                npx prisma generate
+                # npx prisma migrate deploy
+            fi
+            
+            # Restart with PM2
+            if command -v pm2 &> /dev/null; then
+              pm2 delete mis-backend 2>/dev/null || true
+              PORT=7070 pm2 start dist/main.js --name "mis-backend"
+              pm2 save
+            else
+              # Fallback
+              pkill -f "dist/main.js" || true
+              PORT=7070 nohup node dist/main.js > app.log 2>&1 &
+            fi
+          EOF

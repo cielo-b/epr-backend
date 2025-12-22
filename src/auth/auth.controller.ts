@@ -1,0 +1,50 @@
+import { Controller, Post, Body, UseGuards, Get } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
+import { AuthService } from './auth.service';
+import { LoginDto } from './dto/login.dto';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { Public } from '../common/decorators/public.decorator';
+import { VerifySuperAdminKeyDto } from './dto/verify-superadmin-key.dto';
+import { CreateSuperAdminDto } from './dto/create-superadmin.dto';
+
+@ApiTags('auth')
+@Controller('auth')
+export class AuthController {
+  constructor(private readonly authService: AuthService) {}
+
+  @Public()
+  @Post('login')
+  @ApiOperation({ summary: 'User login' })
+  async login(@Body() loginDto: LoginDto) {
+    return this.authService.login(loginDto);
+  }
+
+  @Public()
+  @Post('verify-superadmin-key')
+  @ApiOperation({ summary: 'Verify key required to create a Superadmin user' })
+  @ApiResponse({ status: 201, description: 'Key is valid; Superadmin creation authorized.' })
+  @ApiResponse({ status: 403, description: 'Invalid or missing super admin creation key.' })
+  async verifySuperAdminKey(@Body() body: VerifySuperAdminKeyDto) {
+    return this.authService.verifySuperAdminKey(body.superadminCreationKey);
+  }
+
+  @Public()
+  @Post('create-superadmin')
+  @ApiOperation({ summary: 'Create the first Superadmin (requires SUPERADMIN_CREATION_KEY)' })
+  @ApiResponse({ status: 201, description: 'Superadmin created successfully.' })
+  @ApiResponse({ status: 403, description: 'Invalid or missing super admin creation key.' })
+  @ApiResponse({ status: 409, description: 'A Superadmin already exists.' })
+  async createSuperAdmin(@Body() body: CreateSuperAdminDto) {
+    return this.authService.createSuperAdmin(body);
+  }
+
+  @Get('profile')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get current user profile' })
+  async getProfile(@CurrentUser() user: any) {
+    return user;
+  }
+}
+
