@@ -54,7 +54,11 @@ jobs:
 
           # 2. Extract and Restart
           sshpass -e ssh -o StrictHostKeyChecking=no -p 225 ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
+            # Load environment to ensure PM2/Node are found
             export PATH=$PATH:/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games
+            source ~/.bashrc 2>/dev/null || true
+            source ~/.profile 2>/dev/null || true
+            [ -s "$HOME/.nvm/nvm.sh" ] && . "$HOME/.nvm/nvm.sh"
             
             # Setup directories
             mkdir -p /home/${{ secrets.SSH_USER }}/rm-soft/backend
@@ -96,12 +100,14 @@ jobs:
             
             # Restart with PM2
             if command -v pm2 &> /dev/null; then
+              # Stop legacy process if it exists to free up port 7070
+              pm2 stop ptis-bn 2>/dev/null || true
+              
               pm2 delete mis-backend 2>/dev/null || true
               PORT=7070 pm2 start dist/main.js --name "mis-backend"
               pm2 save
             else
-              # Fallback
-              pkill -f "dist/main.js" || true
-              PORT=7070 nohup node dist/main.js > app.log 2>&1 &
+              echo "Error: PM2 command not found. Please ensure PM2 is installed and in PATH."
+              exit 1
             fi
           EOF
