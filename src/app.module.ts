@@ -11,6 +11,10 @@ import { Project } from './entities/project.entity';
 import { ProjectAssignment } from './entities/project-assignment.entity';
 import { Document } from './entities/document.entity';
 import { Report } from './entities/report.entity';
+import { Comment } from './entities/comment.entity';
+import { ActivityLog } from './entities/activity-log.entity';
+import { ActivityModule } from './activity/activity.module';
+import { CommentsModule } from './comments/comments.module';
 
 @Module({
   imports: [
@@ -22,7 +26,7 @@ import { Report } from './entities/report.entity';
       useFactory: (config: ConfigService) => ({
         type: 'postgres',
         url: config.get<string>('DATABASE_URL'),
-        entities: [User, Project, ProjectAssignment, Document, Report],
+        entities: [User, Project, ProjectAssignment, Document, Report, Comment, ActivityLog],
         synchronize: true,
       }),
     }),
@@ -31,7 +35,9 @@ import { Report } from './entities/report.entity';
     ProjectsModule,
     DocumentsModule,
     ReportsModule,
+    ActivityModule,
+    CommentsModule,
   ],
 })
-export class AppModule {}
+export class AppModule { }
 

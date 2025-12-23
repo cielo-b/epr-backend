@@ -8,6 +8,8 @@ import { User, UserRole } from '../entities/user.entity';
 import { Project, ProjectStatus } from '../entities/project.entity';
 import { ProjectAssignment } from '../entities/project-assignment.entity';
 
+import { ActivityService } from '../activity/activity.service';
+
 @Injectable()
 export class ProjectsService {
   constructor(
@@ -17,7 +19,8 @@ export class ProjectsService {
     private readonly assignmentsRepository: Repository<ProjectAssignment>,
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
-  ) {}
+    private readonly activityService: ActivityService,
+  ) { }
 
   async create(createProjectDto: CreateProjectDto, userId: string, userRole: UserRole) {
     // Only PM, Boss, DevOps, and Superadmin can create projects
@@ -35,7 +38,9 @@ export class ProjectsService {
       managerId,
       creatorId: userId,
     });
-    return this.projectsRepository.save(project);
+    const savedProject = await this.projectsRepository.save(project);
+    await this.activityService.logAction(userId, 'CREATE_PROJECT', `Created project "${savedProject.name}"`, savedProject.id);
+    return savedProject;
   }
 
   async findAll(userId: string, userRole: UserRole) {
@@ -90,9 +95,17 @@ export class ProjectsService {
   async update(id: string, updateProjectDto: UpdateProjectDto, userId: string, userRole: UserRole) {
     const project = await this.findOne(id, userId, userRole);
 
-    // Only Boss, DevOps, Superadmin, or the project manager can update
+    // Check if user is an assigned developer
+    const isAssignedDeveloper =
+      userRole === UserRole.DEVELOPER &&
+      project.assignments &&
+      project.assignments.some((a) => a.developerId === userId);
+
+    // Only Boss, DevOps, Superadmin, PM (manager), or assigned Developer can update
     const canUpdate =
-      [UserRole.BOSS, UserRole.SUPERADMIN].includes(userRole) || project.managerId === userId;
+      [UserRole.BOSS, UserRole.SUPERADMIN, UserRole.DEVOPS].includes(userRole) ||
+      project.managerId === userId ||
+      isAssignedDeveloper;
 
     if (!canUpdate) {
       throw new ForbiddenException('You do not have permission to update this project');
@@ -109,6 +122,29 @@ export class ProjectsService {
     }
 
     await this.projectsRepository.update(id, data);
+
+    // Detailed logging
+    const changes: string[] = [];
+    if (updateProjectDto.name && updateProjectDto.name !== project.name) {
+      changes.push(`name to "${updateProjectDto.name}"`);
+    }
+    if (updateProjectDto.status && updateProjectDto.status !== project.status) {
+      changes.push(`status from ${project.status} to ${updateProjectDto.status}`);
+    }
+    if (updateProjectDto.githubUrl && updateProjectDto.githubUrl !== project.githubUrl) {
+      changes.push(`GitHub URL`);
+    }
+    if (updateProjectDto.deployUrl && updateProjectDto.deployUrl !== project.deployUrl) {
+      changes.push(`Deployment URL`);
+    }
+    if (updateProjectDto.serverDetails && updateProjectDto.serverDetails !== project.serverDetails) {
+      changes.push(`Server Details`);
+    }
+
+    if (changes.length > 0) {
+      await this.activityService.logAction(userId, 'UPDATE_PROJECT', `Updated ${changes.join(', ')}`, id);
+    }
+
     return this.findOne(id, userId, userRole);
   }
 
@@ -173,7 +209,9 @@ export class ProjectsService {
       assignedById: userId,
       notes: assignDeveloperDto.notes,
     });
-    return this.assignmentsRepository.save(assignment);
+    const savedAssignment = await this.assignmentsRepository.save(assignment);
+    await this.activityService.logAction(userId, 'ASSIGN_DEVELOPER', `Assigned developer ${developer.firstName} ${developer.lastName}`, projectId);
+    return savedAssignment;
   }
 
   async removeDeveloper(projectId: string, developerId: string, userId: string, userRole: UserRole) {
@@ -196,6 +234,8 @@ export class ProjectsService {
       projectId,
       developerId,
     });
+
+    await this.activityService.logAction(userId, 'REMOVE_DEVELOPER', `Removed developer from project`, projectId);
 
     return { message: 'Developer removed from project successfully' };
   }

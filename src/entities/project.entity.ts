@@ -44,6 +44,15 @@ export class Project {
   @Column({ type: 'timestamp', nullable: true })
   endDate?: Date | null;
 
+  @Column({ nullable: true })
+  githubUrl?: string;
+
+  @Column({ nullable: true })
+  deployUrl?: string;
+
+  @Column({ type: 'text', nullable: true })
+  serverDetails?: string;
+
   @CreateDateColumn()
   createdAt: Date;
 

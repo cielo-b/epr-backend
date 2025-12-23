@@ -8,6 +8,8 @@ import { Report } from '../entities/report.entity';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
+import { ActivityService } from '../activity/activity.service';
+
 @Injectable()
 export class DocumentsService {
   constructor(
@@ -17,7 +19,8 @@ export class DocumentsService {
     private readonly documentsRepository: Repository<Document>,
     @InjectRepository(Report)
     private readonly reportsRepository: Repository<Report>,
-  ) {}
+    private readonly activityService: ActivityService,
+  ) { }
 
   private async saveFile(
     target: { projectId?: string; reportId?: string },
@@ -47,7 +50,13 @@ export class DocumentsService {
       description,
       ...target,
     });
-    return this.documentsRepository.save(document);
+    const savedDoc = await this.documentsRepository.save(document);
+
+    if (target.projectId) {
+      await this.activityService.logAction(userId, 'UPLOAD_DOCUMENT', `Uploaded document "${savedDoc.originalName}"`, target.projectId);
+    }
+
+    return savedDoc;
   }
 
   async uploadFile(
