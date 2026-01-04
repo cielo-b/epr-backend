@@ -7,8 +7,10 @@ import { AssignDeveloperDto } from './dto/assign-developer.dto';
 import { User, UserRole } from '../entities/user.entity';
 import { Project, ProjectStatus } from '../entities/project.entity';
 import { ProjectAssignment } from '../entities/project-assignment.entity';
+import { Document } from '../entities/document.entity';
 
 import { ActivityService } from '../activity/activity.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class ProjectsService {
@@ -19,7 +21,10 @@ export class ProjectsService {
     private readonly assignmentsRepository: Repository<ProjectAssignment>,
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
+    @InjectRepository(Document)
+    private readonly documentsRepository: Repository<Document>,
     private readonly activityService: ActivityService,
+    private readonly notificationsService: NotificationsService,
   ) { }
 
   async create(createProjectDto: CreateProjectDto, userId: string, userRole: UserRole) {
@@ -40,6 +45,17 @@ export class ProjectsService {
     });
     const savedProject = await this.projectsRepository.save(project);
     await this.activityService.logAction(userId, 'CREATE_PROJECT', `Created project "${savedProject.name}"`, savedProject.id);
+
+    // Notify the project manager if they're not the creator
+    if (managerId !== userId) {
+      await this.notificationsService.notifyUser(
+        managerId,
+        `New Project Assigned: ${savedProject.name}`,
+        `You have been assigned as the manager of a new project.\n\nProject: ${savedProject.name}\nStatus: ${savedProject.status}`,
+        'INFO'
+      );
+    }
+
     return savedProject;
   }
 
@@ -143,6 +159,47 @@ export class ProjectsService {
 
     if (changes.length > 0) {
       await this.activityService.logAction(userId, 'UPDATE_PROJECT', `Updated ${changes.join(', ')}`, id);
+
+      // Notify project manager and all assigned developers about the update
+      const updatedProject = await this.projectsRepository.findOne({
+        where: { id },
+        relations: ['manager', 'assignments', 'assignments.developer'],
+      });
+
+      if (updatedProject) {
+        const usersToNotify = new Set<string>();
+
+        // Add manager
+        if (updatedProject.managerId) {
+          usersToNotify.add(updatedProject.managerId);
+        }
+
+        // Add all assigned developers
+        updatedProject.assignments?.forEach(assignment => {
+          if (assignment.developerId) {
+            usersToNotify.add(assignment.developerId);
+          }
+        });
+
+        // Send notifications
+        for (const targetUserId of usersToNotify) {
+          await this.notificationsService.notifyUser(
+            targetUserId,
+            `Project Updated: ${updatedProject.name}`,
+            `The project "${updatedProject.name}" has been updated.\n\nChanges: ${changes.join(', ')}`,
+            'INFO'
+          );
+        }
+      }
+    }
+
+    // Auto-archive documents if project is completed
+    if (updateProjectDto.status === ProjectStatus.COMPLETED && project.status !== ProjectStatus.COMPLETED) {
+      await this.documentsRepository.update(
+        { projectId: id, isArchived: false },
+        { isArchived: true, archivedAt: new Date() }
+      );
+      await this.activityService.logAction(userId, 'ARCHIVE_DOCUMENTS', 'Auto-archived project documents', id);
     }
 
     return this.findOne(id, userId, userRole);
@@ -152,7 +209,7 @@ export class ProjectsService {
     const project = await this.findOne(id, userId, userRole);
 
     // Only Boss or Superadmin can delete
-    if (![UserRole.BOSS, UserRole.SUPERADMIN].includes(userRole)) {
+    if (![UserRole.BOSS, UserRole.SUPERADMIN, UserRole.PROJECT_MANAGER].includes(userRole)) {
       throw new ForbiddenException('You do not have permission to delete this project');
     }
 
@@ -175,7 +232,7 @@ export class ProjectsService {
 
     // Only PM (who manages the project), Boss, DevOps, or Superadmin can assign developers
     const canAssign =
-      [UserRole.BOSS, UserRole.SUPERADMIN].includes(userRole) ||
+      [UserRole.BOSS, UserRole.SUPERADMIN, UserRole.PROJECT_MANAGER].includes(userRole) ||
       (userRole === UserRole.PROJECT_MANAGER && project.managerId === userId);
 
     if (!canAssign) {
@@ -211,6 +268,15 @@ export class ProjectsService {
     });
     const savedAssignment = await this.assignmentsRepository.save(assignment);
     await this.activityService.logAction(userId, 'ASSIGN_DEVELOPER', `Assigned developer ${developer.firstName} ${developer.lastName}`, projectId);
+
+    // Notify the developer about the assignment
+    await this.notificationsService.notifyUser(
+      developer.id,
+      `New Project Assignment: ${project.name}`,
+      `You have been assigned to a new project.\n\nProject: ${project.name}\nStatus: ${project.status}\nManager: ${project.manager?.firstName} ${project.manager?.lastName}`,
+      'INFO'
+    );
+
     return savedAssignment;
   }
 
@@ -223,7 +289,7 @@ export class ProjectsService {
 
     // Only PM (who manages the project), Boss, DevOps, or Superadmin can remove developers
     const canRemove =
-      [UserRole.BOSS, UserRole.SUPERADMIN].includes(userRole) ||
+      [UserRole.BOSS, UserRole.SUPERADMIN, UserRole.PROJECT_MANAGER].includes(userRole) ||
       (userRole === UserRole.PROJECT_MANAGER && project.managerId === userId);
 
     if (!canRemove) {

@@ -6,10 +6,13 @@ import {
   OneToMany,
   CreateDateColumn,
   UpdateDateColumn,
+  ManyToMany,
 } from 'typeorm';
 import { Project } from './project.entity';
 import { ProjectAssignment } from './project-assignment.entity';
 import { Report } from './report.entity';
+import { Task } from './task.entity';
+import { Notification } from './notification.entity';
 
 export enum UserRole {
   BOSS = 'BOSS',
@@ -75,6 +78,15 @@ export class User {
 
   @OneToMany(() => Report, (report) => report.createdBy)
   reports: Report[];
+
+  @OneToMany(() => Task, (task) => task.createdBy)
+  createdTasks: Task[];
+
+  @ManyToMany(() => Task, (task) => task.assignees)
+  assignedTasks: Task[];
+
+  @OneToMany(() => Notification, (notification) => notification.user)
+  notifications: Notification[];
 }
 
 

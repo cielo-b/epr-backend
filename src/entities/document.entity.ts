@@ -5,6 +5,7 @@ import {
   ManyToOne,
   CreateDateColumn,
   Index,
+  OneToMany,
 } from 'typeorm';
 import { Project } from './project.entity';
 import { Report } from './report.entity';
@@ -58,11 +59,32 @@ export class Document {
   @Column({ type: 'text', nullable: true })
   description?: string | null;
 
-@Column({ default: false })
-isArchived: boolean;
+  @Column({ default: false })
+  isFolder: boolean;
 
-@Column({ type: 'timestamp', nullable: true })
-archivedAt?: Date | null;
+  @Column({ nullable: true })
+  parentId?: string | null;
+
+  @ManyToOne(() => Document, (doc) => doc.children, { nullable: true, onDelete: 'CASCADE' })
+  parent?: Document | null;
+
+  @OneToMany(() => Document, (doc) => doc.parent)
+  children: Document[];
+
+  @Column({ default: 1 })
+  version: number;
+
+  @Column({ nullable: true })
+  previousVersionId?: string | null;
+
+  @ManyToOne(() => Document, { nullable: true })
+  previousVersion?: Document | null;
+
+  @Column({ default: false })
+  isArchived: boolean;
+
+  @Column({ type: 'timestamp', nullable: true })
+  archivedAt?: Date | null;
 }
 
 

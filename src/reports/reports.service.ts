@@ -7,6 +7,7 @@ import { User, UserRole } from '../entities/user.entity';
 import { Project } from '../entities/project.entity';
 import { Report } from '../entities/report.entity';
 import { Document } from '../entities/document.entity';
+import { Task, TaskStatus } from '../entities/task.entity';
 
 @Injectable()
 export class ReportsService {
@@ -19,7 +20,9 @@ export class ReportsService {
     private readonly usersRepository: Repository<User>,
     @InjectRepository(Document)
     private readonly documentsRepository: Repository<Document>,
-  ) {}
+    @InjectRepository(Task)
+    private readonly tasksRepository: Repository<Task>,
+  ) { }
 
   async create(createReportDto: CreateReportDto, userId: string) {
     const report = this.reportsRepository.create({
@@ -61,7 +64,7 @@ export class ReportsService {
     const report = await this.findOne(id, userId, userRole);
 
     // Only creator or Boss/Superadmin can update
-    if (report.createdById !== userId && ![UserRole.BOSS, UserRole.SUPERADMIN].includes(userRole)) {
+    if (report.createdById !== userId && ![UserRole.BOSS, UserRole.SUPERADMIN, UserRole.PROJECT_MANAGER].includes(userRole)) {
       throw new NotFoundException('Report not found or no permission to update');
     }
 
@@ -73,7 +76,7 @@ export class ReportsService {
     const report = await this.findOne(id, userId, userRole);
 
     // Only the creator or Boss/Superadmin can delete
-    if (report.createdById !== userId && ![UserRole.BOSS, UserRole.SUPERADMIN].includes(userRole)) {
+    if (report.createdById !== userId && ![UserRole.BOSS, UserRole.SUPERADMIN, UserRole.PROJECT_MANAGER].includes(userRole)) {
       throw new NotFoundException('Report not found or no permission to delete');
     }
 
@@ -85,7 +88,7 @@ export class ReportsService {
   async getProjectStatistics(projectId: string) {
     const project = await this.projectsRepository.findOne({
       where: { id: projectId },
-      relations: ['assignments', 'documents', 'reports'],
+      relations: ['assignments', 'documents', 'reports', 'tasks'],
     });
 
     if (!project) {
@@ -102,6 +105,18 @@ export class ReportsService {
         totalDevelopers: project.assignments.length,
         totalDocuments: project.documents.length,
         totalReports: project.reports.length,
+        totalTasks: project.tasks.length,
+        completedTasks: project.tasks.filter((t) => t.status === TaskStatus.COMPLETED).length,
+        taskCompletionRate:
+          project.tasks.length > 0
+            ? (project.tasks.filter((t) => t.status === TaskStatus.COMPLETED).length /
+              project.tasks.length) *
+            100
+            : 0,
+        tasksByStatus: project.tasks.reduce((acc, task) => {
+          acc[task.status] = (acc[task.status] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>),
         developers: project.assignments.map((a) => ({
           id: a.developer.id,
           name: `${a.developer.firstName} ${a.developer.lastName}`,
@@ -112,15 +127,16 @@ export class ReportsService {
   }
 
   async getSystemStatistics(userRole: UserRole) {
-    if (![UserRole.BOSS, UserRole.DEVOPS, UserRole.SUPERADMIN].includes(userRole)) {
+    if (![UserRole.BOSS, UserRole.DEVOPS, UserRole.SUPERADMIN, UserRole.PROJECT_MANAGER].includes(userRole)) {
       throw new NotFoundException('Access denied');
     }
 
-    const [totalUsers, totalProjects, totalDocuments, totalReports] = await Promise.all([
+    const [totalUsers, totalProjects, totalDocuments, totalReports, totalTasks] = await Promise.all([
       this.usersRepository.count(),
       this.projectsRepository.count(),
       this.documentsRepository.count(),
       this.reportsRepository.count(),
+      this.tasksRepository.count(),
     ]);
 
     const projectsByStatusRaw = await this.projectsRepository
@@ -137,12 +153,20 @@ export class ReportsService {
       .groupBy('user.role')
       .getRawMany();
 
+    const tasksByStatusRaw = await this.tasksRepository
+      .createQueryBuilder('task')
+      .select('task.status', 'status')
+      .addSelect('COUNT(task.id)', 'count')
+      .groupBy('task.status')
+      .getRawMany();
+
     return {
       overview: {
         totalUsers,
         totalProjects,
         totalDocuments,
         totalReports,
+        totalTasks,
       },
       projectsByStatus: projectsByStatusRaw.map((item) => ({
         status: item.status as string,
@@ -150,6 +174,10 @@ export class ReportsService {
       })),
       usersByRole: usersByRoleRaw.map((item) => ({
         role: item.role as UserRole,
+        count: Number(item.count),
+      })),
+      tasksByStatus: tasksByStatusRaw.map((item) => ({
+        status: item.status as string,
         count: Number(item.count),
       })),
     };

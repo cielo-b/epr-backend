@@ -27,7 +27,17 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class DocumentsController {
-  constructor(private readonly documentsService: DocumentsService) {}
+  constructor(private readonly documentsService: DocumentsService) { }
+
+  @Post('folder/:projectId')
+  @ApiOperation({ summary: 'Create a folder' })
+  createFolder(
+    @Param('projectId') projectId: string,
+    @Body() body: { name: string; parentId?: string },
+    @CurrentUser() user: any,
+  ) {
+    return this.documentsService.createFolder(projectId, body.name, body.parentId, user.id, user.role);
+  }
 
   @Post('upload/:projectId')
   @UseInterceptors(FileInterceptor('file'))
@@ -43,6 +53,10 @@ export class DocumentsController {
         description: {
           type: 'string',
         },
+        parentId: {
+          type: 'string',
+          nullable: true,
+        },
       },
     },
   })
@@ -51,12 +65,13 @@ export class DocumentsController {
     @Param('projectId') projectId: string,
     @UploadedFile() file: Express.Multer.File,
     @Body('description') description: string,
+    @Body('parentId') parentId: string,
     @CurrentUser() user: any,
   ) {
     if (!file) {
       throw new Error('No file uploaded');
     }
-    return this.documentsService.uploadFile(projectId, file, description, user.id, user.role);
+    return this.documentsService.uploadFile(projectId, file, description, parentId, user.id, user.role);
   }
 
   @Post('upload-many/:projectId')
@@ -73,6 +88,10 @@ export class DocumentsController {
         description: {
           type: 'string',
         },
+        parentId: {
+          type: 'string',
+          nullable: true,
+        },
       },
     },
   })
@@ -81,12 +100,13 @@ export class DocumentsController {
     @Param('projectId') projectId: string,
     @UploadedFiles() files: Express.Multer.File[],
     @Body('description') description: string,
+    @Body('parentId') parentId: string,
     @CurrentUser() user: any,
   ) {
     if (!files || files.length === 0) {
       throw new Error('No files uploaded');
     }
-    return this.documentsService.uploadFiles(projectId, files, description, user.id, user.role);
+    return this.documentsService.uploadFiles(projectId, files, description, parentId, user.id, user.role);
   }
 
   @Post('upload-report/:reportId')

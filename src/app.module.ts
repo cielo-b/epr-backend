@@ -15,6 +15,11 @@ import { Comment } from './entities/comment.entity';
 import { ActivityLog } from './entities/activity-log.entity';
 import { ActivityModule } from './activity/activity.module';
 import { CommentsModule } from './comments/comments.module';
+import { TasksModule } from './tasks/tasks.module';
+import { Task } from './entities/task.entity';
+import { Notification } from './entities/notification.entity';
+import { UserPermission } from './entities/user-permission.entity';
+import { PermissionsModule } from './permissions/permissions.module';
 
 @Module({
   imports: [
@@ -26,7 +31,7 @@ import { CommentsModule } from './comments/comments.module';
       useFactory: (config: ConfigService) => ({
         type: 'postgres',
         url: config.get<string>('DATABASE_URL'),
-        entities: [User, Project, ProjectAssignment, Document, Report, Comment, ActivityLog],
+        entities: [User, Project, ProjectAssignment, Document, Report, Comment, ActivityLog, Task, Notification, UserPermission],
         synchronize: true,
       }),
     }),
@@ -37,6 +42,8 @@ import { CommentsModule } from './comments/comments.module';
     ReportsModule,
     ActivityModule,
     CommentsModule,
+    TasksModule,
+    PermissionsModule,
   ],
 })
 export class AppModule { }

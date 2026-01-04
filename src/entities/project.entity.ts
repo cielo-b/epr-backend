@@ -11,6 +11,7 @@ import { User } from './user.entity';
 import { ProjectAssignment } from './project-assignment.entity';
 import { Document } from './document.entity';
 import { Report } from './report.entity';
+import { Task } from './task.entity';
 
 export enum ProjectStatus {
   PLANNING = 'PLANNING',
@@ -79,6 +80,9 @@ export class Project {
 
   @OneToMany(() => Report, (report) => report.project)
   reports: Report[];
+
+  @OneToMany(() => Task, (task) => task.project)
+  tasks: Task[];
 }
 
 

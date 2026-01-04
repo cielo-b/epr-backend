@@ -23,7 +23,7 @@ export class DocumentsService {
   ) { }
 
   private async saveFile(
-    target: { projectId?: string; reportId?: string },
+    target: { projectId?: string; reportId?: string; parentId?: string },
     file: Express.Multer.File,
     description: string | undefined,
     userId: string,
@@ -48,6 +48,7 @@ export class DocumentsService {
       path: filePath,
       uploadedById: userId,
       description,
+      isFolder: false,
       ...target,
     });
     const savedDoc = await this.documentsRepository.save(document);
@@ -59,10 +60,53 @@ export class DocumentsService {
     return savedDoc;
   }
 
+  async createFolder(
+    projectId: string,
+    name: string,
+    parentId: string | undefined,
+    userId: string,
+    userRole: UserRole,
+  ) {
+    const project = await this.projectsRepository.findOne({
+      where: { id: projectId },
+      relations: ['assignments'],
+    });
+
+    if (!project) {
+      throw new NotFoundException('Project not found');
+    }
+
+    const canCreate =
+      [UserRole.BOSS, UserRole.DEVOPS, UserRole.SUPERADMIN, UserRole.PROJECT_MANAGER].includes(userRole) ||
+      project.managerId === userId ||
+      project.assignments.some((a) => a.developerId === userId);
+
+    if (!canCreate) {
+      throw new ForbiddenException('You do not have permission to create folders in this project');
+    }
+
+    const folder = this.documentsRepository.create({
+      originalName: name,
+      filename: name, // Folders don't have physical files, using name as filename
+      mimeType: 'application/x-directory',
+      size: 0,
+      path: '', // No path for folders
+      projectId,
+      isFolder: true,
+      parentId: parentId || null,
+      uploadedById: userId,
+    });
+
+    const savedFolder = await this.documentsRepository.save(folder);
+    await this.activityService.logAction(userId, 'CREATE_FOLDER', `Created folder "${name}"`, projectId);
+    return savedFolder;
+  }
+
   async uploadFile(
     projectId: string,
     file: Express.Multer.File,
     description: string | undefined,
+    parentId: string | undefined,
     userId: string,
     userRole: UserRole,
   ) {
@@ -77,7 +121,7 @@ export class DocumentsService {
 
     // Check permissions: Boss, DevOps, Superadmin, PM (manager), or assigned developer
     const canUpload =
-      [UserRole.BOSS, UserRole.DEVOPS, UserRole.SUPERADMIN].includes(userRole) ||
+      [UserRole.BOSS, UserRole.DEVOPS, UserRole.SUPERADMIN, UserRole.PROJECT_MANAGER].includes(userRole) ||
       project.managerId === userId ||
       project.assignments.some((a) => a.developerId === userId);
 
@@ -85,19 +129,20 @@ export class DocumentsService {
       throw new ForbiddenException('You do not have permission to upload documents to this project');
     }
 
-    return this.saveFile({ projectId }, file, description, userId);
+    return this.saveFile({ projectId, parentId: parentId || null }, file, description, userId);
   }
 
   async uploadFiles(
     projectId: string,
     files: Express.Multer.File[],
     description: string | undefined,
+    parentId: string | undefined,
     userId: string,
     userRole: UserRole,
   ) {
     const results = [];
     for (const file of files) {
-      const saved = await this.uploadFile(projectId, file, description, userId, userRole);
+      const saved = await this.uploadFile(projectId, file, description, parentId, userId, userRole);
       results.push(saved);
     }
     return results;
@@ -120,7 +165,7 @@ export class DocumentsService {
     }
 
     const canUpload =
-      [UserRole.BOSS, UserRole.DEVOPS, UserRole.SUPERADMIN].includes(userRole) ||
+      [UserRole.BOSS, UserRole.DEVOPS, UserRole.SUPERADMIN, UserRole.PROJECT_MANAGER].includes(userRole) ||
       report.createdById === userId;
 
     if (!canUpload) {
@@ -157,7 +202,7 @@ export class DocumentsService {
 
     // Check access permissions
     const canAccess =
-      [UserRole.BOSS, UserRole.DEVOPS, UserRole.SUPERADMIN].includes(userRole) ||
+      [UserRole.BOSS, UserRole.DEVOPS, UserRole.SUPERADMIN, UserRole.PROJECT_MANAGER].includes(userRole) ||
       project.managerId === userId ||
       project.assignments.some((a) => a.developerId === userId);
 
@@ -184,13 +229,13 @@ export class DocumentsService {
     // Check access permissions
     const canAccessProject =
       document.project &&
-      ([UserRole.BOSS, UserRole.DEVOPS, UserRole.SUPERADMIN].includes(userRole) ||
+      ([UserRole.BOSS, UserRole.DEVOPS, UserRole.SUPERADMIN, UserRole.PROJECT_MANAGER].includes(userRole) ||
         document.project.managerId === userId ||
         document.project.assignments.some((a) => a.developerId === userId));
 
     const canAccessReport =
       document.report &&
-      ([UserRole.BOSS, UserRole.DEVOPS, UserRole.SUPERADMIN].includes(userRole) ||
+      ([UserRole.BOSS, UserRole.DEVOPS, UserRole.SUPERADMIN, UserRole.PROJECT_MANAGER].includes(userRole) ||
         document.report.createdById === userId);
 
     if (!(canAccessProject || canAccessReport)) {
@@ -205,7 +250,7 @@ export class DocumentsService {
 
     // Only Boss, DevOps, Superadmin, PM (manager) for project docs, or report owner for report docs
     const canDelete =
-      [UserRole.BOSS, UserRole.DEVOPS, UserRole.SUPERADMIN].includes(userRole) ||
+      [UserRole.BOSS, UserRole.DEVOPS, UserRole.SUPERADMIN, UserRole.PROJECT_MANAGER].includes(userRole) ||
       document.project?.managerId === userId ||
       document.report?.createdById === userId;
 
@@ -224,6 +269,15 @@ export class DocumentsService {
   async getFileBuffer(id: string, userId: string, userRole: UserRole) {
     const document = await this.findOne(id, userId, userRole);
     const fileBuffer = await fs.readFile(document.path);
+
+    // Audit Log: Download/View
+    await this.activityService.logAction(
+      userId,
+      'DOWNLOAD_DOCUMENT',
+      `Accessed document "${document.originalName}"`,
+      document.projectId || undefined // projectId might be null if it's a report doc, verify entity
+    );
+
     return { buffer: fileBuffer, document };
   }
 
@@ -231,7 +285,7 @@ export class DocumentsService {
     const document = await this.findOne(id, userId, userRole);
 
     const canRestore =
-      [UserRole.BOSS, UserRole.DEVOPS, UserRole.SUPERADMIN].includes(userRole) ||
+      [UserRole.BOSS, UserRole.DEVOPS, UserRole.SUPERADMIN, UserRole.PROJECT_MANAGER].includes(userRole) ||
       document.project?.managerId === userId ||
       document.report?.createdById === userId;
 
@@ -251,7 +305,7 @@ export class DocumentsService {
     const document = await this.findOne(id, userId, userRole);
 
     const canDelete =
-      [UserRole.BOSS, UserRole.DEVOPS, UserRole.SUPERADMIN].includes(userRole) ||
+      [UserRole.BOSS, UserRole.DEVOPS, UserRole.SUPERADMIN, UserRole.PROJECT_MANAGER].includes(userRole) ||
       document.project?.managerId === userId ||
       document.report?.createdById === userId;
 
@@ -280,7 +334,7 @@ export class DocumentsService {
     }
 
     const canAccess =
-      [UserRole.BOSS, UserRole.DEVOPS, UserRole.SUPERADMIN].includes(userRole) ||
+      [UserRole.BOSS, UserRole.DEVOPS, UserRole.SUPERADMIN, UserRole.PROJECT_MANAGER].includes(userRole) ||
       report.createdById === userId;
 
     if (!canAccess) {

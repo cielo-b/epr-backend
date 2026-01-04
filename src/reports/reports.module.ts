@@ -6,12 +6,13 @@ import { Report } from '../entities/report.entity';
 import { Project } from '../entities/project.entity';
 import { User } from '../entities/user.entity';
 import { Document } from '../entities/document.entity';
+import { Task } from '../entities/task.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Report, Project, User, Document])],
+  imports: [TypeOrmModule.forFeature([Report, Project, User, Document, Task])],
   controllers: [ReportsController],
   providers: [ReportsService],
   exports: [ReportsService],
 })
-export class ReportsModule {}
+export class ReportsModule { }
 
