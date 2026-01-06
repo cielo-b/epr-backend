@@ -25,13 +25,13 @@ import { UserRole } from '../entities/user.entity';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @ApiBearerAuth()
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(private readonly usersService: UsersService) { }
 
   @Post()
-  @Roles(UserRole.BOSS, UserRole.SUPERADMIN)
-  @ApiOperation({ summary: 'Create a new user (Boss/Superadmin only)' })
+  @Roles(UserRole.BOSS, UserRole.SUPERADMIN, UserRole.PROJECT_MANAGER)
+  @ApiOperation({ summary: 'Create a new user (Boss/Superadmin/PM only)' })
   @ApiResponse({ status: 201, description: 'User created successfully' })
-  @ApiResponse({ status: 403, description: 'Forbidden - Only Boss/Superadmin can create users' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Only Boss/Superadmin/PM can create users' })
   async create(@Body() createUserDto: CreateUserDto, @CurrentUser() user: any) {
     return this.usersService.create(createUserDto, user.id);
   }

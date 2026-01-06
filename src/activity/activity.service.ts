@@ -32,4 +32,12 @@ export class ActivityService {
             relations: ['actor'],
         });
     }
+
+    async getRecentLogs(limit: number = 50) {
+        return this.repo.find({
+            order: { timestamp: 'DESC' },
+            relations: ['actor', 'project'],
+            take: limit
+        });
+    }
 }

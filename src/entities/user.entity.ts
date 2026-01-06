@@ -13,6 +13,7 @@ import { ProjectAssignment } from './project-assignment.entity';
 import { Report } from './report.entity';
 import { Task } from './task.entity';
 import { Notification } from './notification.entity';
+import { UserPermission } from './user-permission.entity';
 
 export enum UserRole {
   BOSS = 'BOSS',
@@ -87,6 +88,9 @@ export class User {
 
   @OneToMany(() => Notification, (notification) => notification.user)
   notifications: Notification[];
+
+  @OneToMany(() => UserPermission, (permission) => permission.user)
+  permissions: UserPermission[];
 }
 
 

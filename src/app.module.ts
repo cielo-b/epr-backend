@@ -20,6 +20,15 @@ import { Task } from './entities/task.entity';
 import { Notification } from './entities/notification.entity';
 import { UserPermission } from './entities/user-permission.entity';
 import { PermissionsModule } from './permissions/permissions.module';
+import { ScheduleModule } from '@nestjs/schedule';
+import { ServersModule } from './servers/servers.module';
+import { Server } from './entities/server.entity';
+import { Announcement } from './entities/announcement.entity';
+import { Milestone } from './entities/milestone.entity';
+import { Meeting } from './entities/meeting.entity';
+import { AnnouncementsModule } from './announcements/announcements.module';
+import { MilestonesModule } from './milestones/milestones.module';
+import { MeetingsModule } from './meetings/meetings.module';
 
 @Module({
   imports: [
@@ -31,10 +40,26 @@ import { PermissionsModule } from './permissions/permissions.module';
       useFactory: (config: ConfigService) => ({
         type: 'postgres',
         url: config.get<string>('DATABASE_URL'),
-        entities: [User, Project, ProjectAssignment, Document, Report, Comment, ActivityLog, Task, Notification, UserPermission],
+        entities: [
+          User,
+          Project,
+          ProjectAssignment,
+          Document,
+          Report,
+          Comment,
+          ActivityLog,
+          Task,
+          Notification,
+          UserPermission,
+          Server,
+          Announcement,
+          Milestone,
+          Meeting,
+        ],
         synchronize: true,
       }),
     }),
+    ScheduleModule.forRoot(),
     AuthModule,
     UsersModule,
     ProjectsModule,
@@ -44,6 +69,10 @@ import { PermissionsModule } from './permissions/permissions.module';
     CommentsModule,
     TasksModule,
     PermissionsModule,
+    ServersModule,
+    AnnouncementsModule,
+    MilestonesModule,
+    MeetingsModule,
   ],
 })
 export class AppModule { }

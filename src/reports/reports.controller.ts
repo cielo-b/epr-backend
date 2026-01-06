@@ -23,7 +23,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class ReportsController {
-  constructor(private readonly reportsService: ReportsService) {}
+  constructor(private readonly reportsService: ReportsService) { }
 
   @Post()
   @ApiOperation({ summary: 'Create a new report' })
@@ -50,6 +50,12 @@ export class ReportsController {
   @ApiOperation({ summary: 'Get system statistics (Boss/DevOps/Superadmin only)' })
   getSystemStatistics(@CurrentUser() user: any) {
     return this.reportsService.getSystemStatistics(user.role);
+  }
+
+  @Get('statistics/personal')
+  @ApiOperation({ summary: 'Get personal statistics for the current user' })
+  getPersonalStatistics(@CurrentUser() user: any) {
+    return this.reportsService.getPersonalStatistics(user.id);
   }
 
   @Get(':id')

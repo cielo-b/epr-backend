@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsEnum, IsDateString } from 'class-validator';
+import { IsString, IsOptional, IsEnum, IsDateString, IsNumber, IsBoolean } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ProjectStatus } from '../../entities/project.entity';
 
@@ -46,5 +46,40 @@ export class CreateProjectDto {
   @IsOptional()
   @IsString()
   managerId?: string;
+
+  @ApiPropertyOptional({ example: 3000 })
+  @IsOptional()
+  @IsNumber()
+  devServerPort?: number;
+
+  @ApiPropertyOptional({ example: 'https://prod.myapp.com' })
+  @IsOptional()
+  @IsString()
+  productionUrl?: string;
+
+  @ApiPropertyOptional({ example: true })
+  @IsOptional()
+  @IsBoolean()
+  isDeployed?: boolean;
+
+  @ApiPropertyOptional({ example: '/health' })
+  @IsOptional()
+  @IsString()
+  healthCheckEndpoint?: string;
+
+  @ApiPropertyOptional({ description: 'Development server ID' })
+  @IsOptional()
+  @IsString()
+  devServerId?: string;
+
+  @ApiPropertyOptional({ description: 'Production server ID' })
+  @IsOptional()
+  @IsString()
+  productionServerId?: string;
+
+  @ApiPropertyOptional({ example: 'DATABASE_URL=postgres://...\nPORT=3000' })
+  @IsOptional()
+  @IsString()
+  envTemplate?: string;
 }
 

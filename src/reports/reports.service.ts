@@ -1,12 +1,12 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { CreateReportDto } from './dto/create-report.dto';
 import { UpdateReportDto } from './dto/update-report.dto';
 import { User, UserRole } from '../entities/user.entity';
 import { Project } from '../entities/project.entity';
 import { Report } from '../entities/report.entity';
-import { Document } from '../entities/document.entity';
+import { Document, ConfidentialityLevel } from '../entities/document.entity';
 import { Task, TaskStatus } from '../entities/task.entity';
 
 @Injectable()
@@ -28,6 +28,7 @@ export class ReportsService {
     const report = this.reportsRepository.create({
       ...createReportDto,
       createdById: userId,
+      confidentiality: (createReportDto.confidentiality as 'CONFIDENTIAL' | 'PUBLIC') || ConfidentialityLevel.PUBLIC,
     });
     return this.reportsRepository.save(report);
   }
@@ -38,12 +39,28 @@ export class ReportsService {
       where.projectId = projectId;
     }
 
-    // Everyone can see all reports; no role filter
-    return this.reportsRepository.find({
+    let reports = await this.reportsRepository.find({
       where,
       relations: ['createdBy', 'project'],
       order: { createdAt: 'DESC' },
     });
+
+    // Confidentiality Filtering
+    reports = reports.filter(report => {
+      // High privilege or Creator always sees it
+      if ([UserRole.BOSS, UserRole.SUPERADMIN, UserRole.DEVOPS, UserRole.PROJECT_MANAGER].includes(userRole)) return true;
+      if (report.createdById === userId) return true;
+
+      // Confidential check
+      if (report.confidentiality === ConfidentialityLevel.CONFIDENTIAL) {
+        return false;
+      }
+
+      // If Public, everyone sees it.
+      return true;
+    });
+
+    return reports;
   }
 
   async findOne(id: string, userId: string, userRole: UserRole) {
@@ -56,14 +73,27 @@ export class ReportsService {
       throw new NotFoundException('Report not found');
     }
 
-    // Everyone can view; no restrictions
+    // High privilege or Creator always allowed
+    if ([UserRole.BOSS, UserRole.SUPERADMIN, UserRole.DEVOPS, UserRole.PROJECT_MANAGER].includes(userRole)) {
+      return report;
+    }
+    if (report.createdById === userId) {
+      return report;
+    }
+
+    // Confidentiality Check
+    if (report.confidentiality === ConfidentialityLevel.CONFIDENTIAL) {
+      throw new ForbiddenException('This report is confidential.');
+    }
+
+    // Visitors/Public users can see Public reports
     return report;
   }
 
   async update(id: string, updateReportDto: UpdateReportDto, userId: string, userRole: UserRole) {
     const report = await this.findOne(id, userId, userRole);
 
-    // Only creator or Boss/Superadmin can update
+    // Only creator or Boss/Superadmin/PM can update
     if (report.createdById !== userId && ![UserRole.BOSS, UserRole.SUPERADMIN, UserRole.PROJECT_MANAGER].includes(userRole)) {
       throw new NotFoundException('Report not found or no permission to update');
     }
@@ -75,7 +105,7 @@ export class ReportsService {
   async remove(id: string, userId: string, userRole: UserRole) {
     const report = await this.findOne(id, userId, userRole);
 
-    // Only the creator or Boss/Superadmin can delete
+    // Only the creator or Boss/Superadmin/PM can delete
     if (report.createdById !== userId && ![UserRole.BOSS, UserRole.SUPERADMIN, UserRole.PROJECT_MANAGER].includes(userRole)) {
       throw new NotFoundException('Report not found or no permission to delete');
     }
@@ -182,5 +212,35 @@ export class ReportsService {
       })),
     };
   }
-}
 
+  async getPersonalStatistics(userId: string) {
+    const [assignedProjectsCount, assignedTasksCount] = await Promise.all([
+      this.projectsRepository.count({
+        where: { assignments: { developerId: userId } }
+      }),
+      this.tasksRepository.count({
+        where: { assignees: { id: userId } }
+      })
+    ]);
+
+    const tasksByStatusRaw = await this.tasksRepository
+      .createQueryBuilder('task')
+      .leftJoin('task.assignees', 'assignee')
+      .select('task.status', 'status')
+      .addSelect('COUNT(task.id)', 'count')
+      .where('assignee.id = :userId', { userId })
+      .groupBy('task.status')
+      .getRawMany();
+
+    return {
+      overview: {
+        assignedProjects: assignedProjectsCount,
+        assignedTasks: assignedTasksCount,
+      },
+      tasksByStatus: tasksByStatusRaw.map((item) => ({
+        status: item.status as string,
+        count: Number(item.count),
+      })),
+    };
+  }
+}

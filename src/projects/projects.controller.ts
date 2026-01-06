@@ -15,6 +15,7 @@ import { ProjectsService } from './projects.service';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { AssignDeveloperDto } from './dto/assign-developer.dto';
+import { ProjectPulseDto } from './dto/project-pulse.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
@@ -23,7 +24,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class ProjectsController {
-  constructor(private readonly projectsService: ProjectsService) {}
+  constructor(private readonly projectsService: ProjectsService) { }
 
   @Post()
   @ApiOperation({ summary: 'Create a new project' })
@@ -75,6 +76,17 @@ export class ProjectsController {
     @CurrentUser() user: any,
   ) {
     return this.projectsService.removeDeveloper(projectId, developerId, user.id, user.role);
+  }
+  @Post(':id/request-update')
+  @ApiOperation({ summary: 'Request status update from assigned developers (PM/Boss/Superadmin only)' })
+  requestUpdate(@Param('id') projectId: string, @CurrentUser() user: any) {
+    return this.projectsService.requestUpdate(projectId, user.id, user.role);
+  }
+
+  @Post(':id/pulse')
+  @ApiOperation({ summary: 'Developer sends a status pulse response' })
+  sendPulse(@Param('id') projectId: string, @Body() pulseDto: ProjectPulseDto, @CurrentUser() user: any) {
+    return this.projectsService.sendPulse(projectId, pulseDto, user.id, user.role);
   }
 }
 

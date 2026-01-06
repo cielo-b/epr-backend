@@ -20,5 +20,10 @@ export class CreateReportDto {
   @IsOptional()
   @IsString()
   projectId?: string;
+
+  @ApiPropertyOptional({ example: 'PUBLIC', enum: ['CONFIDENTIAL', 'PUBLIC'] })
+  @IsOptional()
+  @IsString()
+  confidentiality?: 'CONFIDENTIAL' | 'PUBLIC';
 }
 

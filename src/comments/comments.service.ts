@@ -15,49 +15,38 @@ export class CommentsService {
         private readonly notificationsService: NotificationsService,
     ) { }
 
-    async create(authorId: string, projectId: string, content: string, documentId?: string) {
+    async create(authorId: string, projectId?: string, content?: string, documentId?: string, announcementId?: string) {
         const comment = this.repo.create({
             authorId,
-            projectId,
+            projectId: projectId || null,
             content,
             documentId: documentId || null,
+            announcementId: announcementId || null,
         });
         const saved = await this.repo.save(comment);
 
-        // Notify project manager and team about new comment
-        const project = await this.projectRepo.findOne({
-            where: { id: projectId },
-            relations: ['manager', 'assignments', 'assignments.developer', 'creator'],
-        });
-
-        if (project) {
-            const usersToNotify = new Set<string>();
-
-            // Add manager
-            if (project.managerId && project.managerId !== authorId) {
-                usersToNotify.add(project.managerId);
-            }
-
-            // Add creator if different
-            if (project.creatorId && project.creatorId !== authorId) {
-                usersToNotify.add(project.creatorId);
-            }
-
-            // Add assigned developers
-            project.assignments?.forEach(assignment => {
-                if (assignment.developerId && assignment.developerId !== authorId) {
-                    usersToNotify.add(assignment.developerId);
-                }
+        if (projectId) {
+            // Notify project manager and team about new comment
+            const project = await this.projectRepo.findOne({
+                where: { id: projectId },
+                relations: ['manager', 'assignments', 'assignments.developer', 'creator'],
             });
 
-            // Send notifications
-            for (const userId of usersToNotify) {
-                await this.notificationsService.notifyUser(
-                    userId,
-                    `New Comment on ${project.name}`,
-                    `A new comment has been added to the project.\n\nComment: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`,
-                    'INFO'
-                );
+            if (project) {
+                const usersToNotify = new Set<string>();
+                if (project.managerId && project.managerId !== authorId) usersToNotify.add(project.managerId);
+                project.assignments?.forEach(assignment => {
+                    if (assignment.developerId && assignment.developerId !== authorId) usersToNotify.add(assignment.developerId);
+                });
+
+                for (const userId of usersToNotify) {
+                    await this.notificationsService.notifyUser(
+                        userId,
+                        `New Comment on ${project.name}`,
+                        `A new comment has been added to the project.`,
+                        'INFO'
+                    );
+                }
             }
         }
 
@@ -67,6 +56,14 @@ export class CommentsService {
     async findByProject(projectId: string) {
         return this.repo.find({
             where: { projectId },
+            order: { createdAt: 'ASC' },
+            relations: ['author'],
+        });
+    }
+
+    async findByAnnouncement(announcementId: string) {
+        return this.repo.find({
+            where: { announcementId },
             order: { createdAt: 'ASC' },
             relations: ['author'],
         });

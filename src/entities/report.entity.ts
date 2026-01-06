@@ -47,6 +47,13 @@ export class Report {
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  @Column({
+    type: 'enum',
+    enum: ['CONFIDENTIAL', 'PUBLIC'],
+    default: 'PUBLIC'
+  })
+  confidentiality: 'CONFIDENTIAL' | 'PUBLIC';
 }
 
 

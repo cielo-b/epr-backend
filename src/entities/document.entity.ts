@@ -85,6 +85,19 @@ export class Document {
 
   @Column({ type: 'timestamp', nullable: true })
   archivedAt?: Date | null;
+
+  @Column({
+    type: 'enum',
+    enum: ['CONFIDENTIAL', 'PUBLIC'],
+    default: 'PUBLIC'
+  })
+  confidentiality: 'CONFIDENTIAL' | 'PUBLIC';
 }
+
+export enum ConfidentialityLevel {
+  CONFIDENTIAL = 'CONFIDENTIAL',
+  PUBLIC = 'PUBLIC',
+}
+
 
 

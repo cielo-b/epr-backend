@@ -13,4 +13,9 @@ export class ActivityController {
     getProjectLogs(@Param('projectId') projectId: string) {
         return this.service.getProjectLogs(projectId);
     }
+
+    @Get('recent')
+    getRecentLogs() {
+        return this.service.getRecentLogs();
+    }
 }

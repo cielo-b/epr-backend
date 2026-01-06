@@ -11,18 +11,24 @@ import { ApiTags } from '@nestjs/swagger';
 export class CommentsController {
     constructor(private readonly service: CommentsService) { }
 
-    @Post('project/:projectId')
+    @Post()
     create(
-        @Param('projectId') projectId: string,
+        @Body('projectId') projectId: string,
         @Body('content') content: string,
         @Body('documentId') documentId: string,
+        @Body('announcementId') announcementId: string,
         @CurrentUser() user: User,
     ) {
-        return this.service.create(user.id, projectId, content, documentId);
+        return this.service.create(user.id, projectId, content, documentId, announcementId);
     }
 
     @Get('project/:projectId')
     getProjectComments(@Param('projectId') projectId: string) {
         return this.service.findByProject(projectId);
+    }
+
+    @Get('announcement/:announcementId')
+    getAnnouncementComments(@Param('announcementId') announcementId: string) {
+        return this.service.findByAnnouncement(announcementId);
     }
 }

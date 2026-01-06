@@ -8,9 +8,12 @@ import { User, UserRole } from '../entities/user.entity';
 import { Project, ProjectStatus } from '../entities/project.entity';
 import { ProjectAssignment } from '../entities/project-assignment.entity';
 import { Document } from '../entities/document.entity';
+import { ProjectPulseDto } from './dto/project-pulse.dto';
 
 import { ActivityService } from '../activity/activity.service';
 import { NotificationsService } from '../notifications/notifications.service';
+
+import { UserPermission, PermissionResource, PermissionAction } from '../entities/user-permission.entity';
 
 @Injectable()
 export class ProjectsService {
@@ -23,6 +26,8 @@ export class ProjectsService {
     private readonly usersRepository: Repository<User>,
     @InjectRepository(Document)
     private readonly documentsRepository: Repository<Document>,
+    @InjectRepository(UserPermission)
+    private readonly permissionsRepository: Repository<UserPermission>,
     private readonly activityService: ActivityService,
     private readonly notificationsService: NotificationsService,
   ) { }
@@ -63,7 +68,7 @@ export class ProjectsService {
     // Boss, PM, DevOps, and Superadmin can see all projects
     if ([UserRole.BOSS, UserRole.PROJECT_MANAGER, UserRole.DEVOPS, UserRole.SUPERADMIN].includes(userRole)) {
       return this.projectsRepository.find({
-        relations: ['manager', 'creator', 'assignments', 'assignments.developer', 'documents'],
+        relations: ['manager', 'creator', 'assignments', 'assignments.developer', 'documents', 'devServer', 'productionServer'],
         order: { createdAt: 'DESC' },
       });
     }
@@ -81,14 +86,46 @@ export class ProjectsService {
         .getMany();
     }
 
-    // Others see nothing or limited view
+    // Check custom permissions for others (e.g. VISITOR)
+    const permissions = await this.permissionsRepository.find({
+      where: {
+        userId,
+        resource: PermissionResource.PROJECT,
+        action: PermissionAction.VIEW
+      }
+    });
+
+    if (permissions.length > 0) {
+      const allProjectsPermission = permissions.find(p => !p.resourceId);
+
+      if (allProjectsPermission) {
+        return this.projectsRepository.find({
+          relations: ['manager', 'creator', 'assignments', 'assignments.developer', 'documents', 'devServer', 'productionServer'],
+          order: { createdAt: 'DESC' },
+        });
+      }
+
+      const projectIds = permissions.map(p => p.resourceId).filter(id => id !== null);
+      if (projectIds.length > 0) {
+        return this.projectsRepository.createQueryBuilder('project')
+          .leftJoinAndSelect('project.manager', 'manager')
+          .leftJoinAndSelect('project.assignments', 'assignment')
+          .leftJoinAndSelect('assignment.developer', 'developer')
+          .leftJoinAndSelect('project.documents', 'document')
+          .where('project.id IN (:...projectIds)', { projectIds })
+          .orderBy('project.createdAt', 'DESC')
+          .getMany();
+      }
+    }
+
+    // Others see nothing
     return [];
   }
 
   async findOne(id: string, userId: string, userRole: UserRole) {
     const project = await this.projectsRepository.findOne({
       where: { id },
-      relations: ['manager', 'creator', 'assignments', 'assignments.developer', 'documents'],
+      relations: ['manager', 'creator', 'assignments', 'assignments.developer', 'documents', 'devServer', 'productionServer'],
     });
 
     if (!project) {
@@ -96,16 +133,33 @@ export class ProjectsService {
     }
 
     // Check access permissions
-    const canAccess =
-      [UserRole.BOSS, UserRole.PROJECT_MANAGER, UserRole.DEVOPS, UserRole.SUPERADMIN].includes(userRole) ||
-      project.managerId === userId ||
-      project.assignments.some((a) => a.developerId === userId);
 
-    if (!canAccess) {
-      throw new ForbiddenException('You do not have access to this project');
+    // 1. Role-based access
+    if ([UserRole.BOSS, UserRole.PROJECT_MANAGER, UserRole.DEVOPS, UserRole.SUPERADMIN].includes(userRole)) {
+      return project;
     }
 
-    return project;
+    // 2. Project ownership/assignment
+    if (project.managerId === userId || project.assignments.some((a) => a.developerId === userId)) {
+      return project;
+    }
+
+    // 3. Custom permissions (e.g. VISITOR)
+    const permissions = await this.permissionsRepository.find({
+      where: {
+        userId,
+        resource: PermissionResource.PROJECT,
+        action: PermissionAction.VIEW
+      }
+    });
+
+    const hasPermission = permissions.some(p => !p.resourceId || p.resourceId === id);
+
+    if (hasPermission) {
+      return project;
+    }
+
+    throw new ForbiddenException('You do not have access to this project');
   }
 
   async update(id: string, updateProjectDto: UpdateProjectDto, userId: string, userRole: UserRole) {
@@ -117,14 +171,24 @@ export class ProjectsService {
       project.assignments &&
       project.assignments.some((a) => a.developerId === userId);
 
-    // Only Boss, DevOps, Superadmin, PM (manager), or assigned Developer can update
-    const canUpdate =
+    // Only Boss, DevOps, Superadmin, PM (manager) can update general project details.
+    // Developers are restricted from general project updates but CAN update the envTemplate if assigned.
+    const isManagerOrAdmin =
       [UserRole.BOSS, UserRole.SUPERADMIN, UserRole.DEVOPS].includes(userRole) ||
-      project.managerId === userId ||
-      isAssignedDeveloper;
+      project.managerId === userId;
+
+    let canUpdate = isManagerOrAdmin;
+
+    // Special allowance for assigned developers to update the environment template (Vault)
+    if (!canUpdate && isAssignedDeveloper) {
+      const updateKeys = Object.keys(updateProjectDto);
+      if (updateKeys.length === 1 && updateKeys[0] === 'envTemplate') {
+        canUpdate = true;
+      }
+    }
 
     if (!canUpdate) {
-      throw new ForbiddenException('You do not have permission to update this project');
+      throw new ForbiddenException('You do not have permission to update this project details');
     }
 
     const data = { ...updateProjectDto } as unknown as Partial<Project>;
@@ -214,7 +278,7 @@ export class ProjectsService {
     }
 
     await this.projectsRepository.delete(id);
-
+    await this.activityService.logAction(userId, 'DELETE_PROJECT', `Deleted project "${project.name}"`);
     return { message: 'Project deleted successfully' };
   }
 
@@ -304,6 +368,65 @@ export class ProjectsService {
     await this.activityService.logAction(userId, 'REMOVE_DEVELOPER', `Removed developer from project`, projectId);
 
     return { message: 'Developer removed from project successfully' };
+  }
+
+  async requestUpdate(projectId: string, userId: string, userRole: UserRole) {
+    const project = await this.projectsRepository.findOne({
+      where: { id: projectId },
+      relations: ['manager', 'assignments', 'assignments.developer'],
+    });
+
+    if (!project) {
+      throw new NotFoundException('Project not found');
+    }
+
+    // Only Manager, Boss, or Superadmin can request updates
+    const canRequest =
+      [UserRole.BOSS, UserRole.SUPERADMIN, UserRole.PROJECT_MANAGER].includes(userRole) ||
+      project.managerId === userId;
+
+    if (!canRequest) {
+      throw new ForbiddenException('You do not have permission to request updates for this project');
+    }
+
+    const assignedDevelopers = project.assignments?.map(a => a.developerId) || [];
+
+    for (const devId of assignedDevelopers) {
+      await this.notificationsService.notifyUser(
+        devId,
+        `Update Requested: ${project.name}`,
+        `A status update has been requested for the project "${project.name}" by the project manager.`,
+        'INFO'
+      );
+    }
+
+    await this.activityService.logAction(userId, 'REQUEST_UPDATE', `Requested status update from team`, projectId);
+
+    return { message: `Update request sent to ${assignedDevelopers.length} developers` };
+  }
+
+  async sendPulse(projectId: string, pulseDto: ProjectPulseDto, userId: string, userRole: UserRole) {
+    const project = await this.findOne(projectId, userId, userRole);
+
+    const user = await this.usersRepository.findOne({ where: { id: userId } });
+    const manager = await this.usersRepository.findOne({ where: { id: project.managerId } });
+
+    const statusLabel = pulseDto.status.replace('_', ' ');
+    const message = pulseDto.message ? `: ${pulseDto.message}` : '';
+    const description = `Pulse from ${user?.firstName}: Project is ${statusLabel}${message}`;
+
+    await this.activityService.logAction(userId, 'PROJECT_PULSE', description, projectId);
+
+    if (manager) {
+      await this.notificationsService.notifyUser(
+        manager.id,
+        `Status Pulse: ${project.name}`,
+        description,
+        'INFO'
+      );
+    }
+
+    return { message: 'Pulse sent successfully' };
   }
 }
 

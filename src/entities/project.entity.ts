@@ -12,6 +12,7 @@ import { ProjectAssignment } from './project-assignment.entity';
 import { Document } from './document.entity';
 import { Report } from './report.entity';
 import { Task } from './task.entity';
+import { Server } from './server.entity';
 
 export enum ProjectStatus {
   PLANNING = 'PLANNING',
@@ -19,6 +20,13 @@ export enum ProjectStatus {
   ON_HOLD = 'ON_HOLD',
   COMPLETED = 'COMPLETED',
   CANCELLED = 'CANCELLED',
+}
+
+export enum ApplicationStatus {
+  UP = 'UP',
+  DOWN = 'DOWN',
+  UNKNOWN = 'UNKNOWN',
+  MAINTENANCE = 'MAINTENANCE'
 }
 
 @Entity()
@@ -54,6 +62,28 @@ export class Project {
   @Column({ type: 'text', nullable: true })
   serverDetails?: string;
 
+  @Column({ nullable: true })
+  devServerPort?: number;
+
+  @Column({ nullable: true })
+  productionUrl?: string;
+
+  @Column({ default: false })
+  isDeployed: boolean;
+
+  @Column({ default: '/' })
+  healthCheckEndpoint: string;
+
+  @Column({
+    type: 'enum',
+    enum: ApplicationStatus,
+    default: ApplicationStatus.UNKNOWN
+  })
+  lastHealthCheckStatus: ApplicationStatus;
+
+  @Column({ type: 'timestamp', nullable: true })
+  lastHealthCheckTime?: Date | null;
+
   @CreateDateColumn()
   createdAt: Date;
 
@@ -83,6 +113,21 @@ export class Project {
 
   @OneToMany(() => Task, (task) => task.project)
   tasks: Task[];
+
+  @Column({ nullable: true })
+  devServerId?: string;
+
+  @ManyToOne(() => Server, { nullable: true })
+  devServer?: Server;
+
+  @Column({ nullable: true })
+  productionServerId?: string;
+
+  @ManyToOne(() => Server, { nullable: true })
+  productionServer?: Server;
+
+  @Column({ type: 'text', nullable: true })
+  envTemplate?: string;
 }
 
 

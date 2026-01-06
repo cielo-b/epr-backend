@@ -38,8 +38,9 @@ export class TasksController {
         @CurrentUser() user: any,
         @Query('projectId') projectId?: string,
         @Query('status') status?: TaskStatus,
+        @Query('assigneeId') assigneeId?: string,
     ) {
-        return this.tasksService.findAll(user.id, user.role, projectId, status);
+        return this.tasksService.findAll(user.id, user.role, projectId, status, assigneeId);
     }
 
     @Get(':id')

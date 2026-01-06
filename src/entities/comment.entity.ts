@@ -2,6 +2,7 @@ import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn } f
 import { User } from './user.entity';
 import { Project } from './project.entity';
 import { Document } from './document.entity';
+import { Announcement } from './announcement.entity';
 
 @Entity()
 export class Comment {
@@ -31,4 +32,10 @@ export class Comment {
 
     @ManyToOne(() => Document, { onDelete: 'CASCADE', nullable: true })
     document?: Document;
+
+    @Column({ nullable: true })
+    announcementId?: string;
+
+    @ManyToOne(() => Announcement, { onDelete: 'CASCADE', nullable: true })
+    announcement?: Announcement;
 }

@@ -88,13 +88,16 @@ export class TasksService {
         return savedTask;
     }
 
-    async findAll(userId: string, userRole: UserRole, projectId?: string, status?: TaskStatus) {
+    async findAll(userId: string, userRole: UserRole, projectId?: string, status?: TaskStatus, assigneeId?: string) {
         const where: any = {};
         if (projectId) {
             where.projectId = projectId;
         }
         if (status) {
             where.status = status;
+        }
+        if (assigneeId) {
+            where.assignees = { id: assigneeId };
         }
 
         // Role-based filtering
@@ -173,15 +176,14 @@ export class TasksService {
         }
 
         if (!hasFullAccess && isAssignee) {
-            // Restrict what assignees can update? Maybe just status?
-            // For now, let's allow them to update, but maybe we should validate fields.
-            // Ideally, separate DTO or check fields.
-            // If they try to change something critical like project or similar, block it.
-            // But UpdateTaskDto is broad.
-            // Let's assume trust for now or strict on Status only if requested. 
-            // SRS: "Developer... Access assigned tasks". Use Case UC-03 Assign Task. 
-            // Use case diagram shows "Update Task Status?" -> "User updates task status"
-            // So developers DEFINITELY update status.
+            // Restrict what assignees can update: Status only.
+            const allowedFields = ['status'];
+            const attemptedFields = Object.keys(updateTaskDto).filter(key => updateTaskDto[key as keyof typeof updateTaskDto] !== undefined);
+            const forbiddenFields = attemptedFields.filter(f => !allowedFields.includes(f));
+
+            if (forbiddenFields.length > 0) {
+                throw new ForbiddenException(`Developers can only update task status. Forbidden fields: ${forbiddenFields.join(', ')}`);
+            }
         }
 
         if (updateTaskDto.assigneeIds) {

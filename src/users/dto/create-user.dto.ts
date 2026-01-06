@@ -1,6 +1,8 @@
-import { IsEmail, IsString, MinLength, IsEnum, IsOptional, IsBoolean } from 'class-validator';
+import { IsEmail, IsString, MinLength, IsEnum, IsOptional, IsBoolean, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 import { UserRole } from '../../entities/user.entity';
+import { CreatePermissionDto } from './create-permission.dto';
 
 export class CreateUserDto {
   @ApiProperty({ example: 'john.doe@rmsoft.com' })
@@ -28,5 +30,11 @@ export class CreateUserDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiProperty({ type: [CreatePermissionDto], required: false })
+  @IsOptional()
+  @ValidateNested({ each: true })
+  @Type(() => CreatePermissionDto)
+  permissions?: CreatePermissionDto[];
 }
 

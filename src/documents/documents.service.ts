@@ -1,9 +1,9 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { UserRole } from '../entities/user.entity';
 import { Project } from '../entities/project.entity';
-import { Document } from '../entities/document.entity';
+import { Document, ConfidentialityLevel } from '../entities/document.entity';
 import { Report } from '../entities/report.entity';
 import * as fs from 'fs/promises';
 import * as path from 'path';
@@ -26,6 +26,7 @@ export class DocumentsService {
     target: { projectId?: string; reportId?: string; parentId?: string },
     file: Express.Multer.File,
     description: string | undefined,
+    confidentiality: ConfidentialityLevel = ConfidentialityLevel.PUBLIC,
     userId: string,
   ) {
     // Ensure upload directory exists
@@ -49,12 +50,13 @@ export class DocumentsService {
       uploadedById: userId,
       description,
       isFolder: false,
+      confidentiality,
       ...target,
     });
     const savedDoc = await this.documentsRepository.save(document);
 
     if (target.projectId) {
-      await this.activityService.logAction(userId, 'UPLOAD_DOCUMENT', `Uploaded document "${savedDoc.originalName}"`, target.projectId);
+      await this.activityService.logAction(userId, 'UPLOAD_DOCUMENT', `Uploaded document "${savedDoc.originalName}" (${confidentiality})`, target.projectId);
     }
 
     return savedDoc;
@@ -95,6 +97,7 @@ export class DocumentsService {
       isFolder: true,
       parentId: parentId || null,
       uploadedById: userId,
+      confidentiality: ConfidentialityLevel.PUBLIC, // Folders are generally visible structure
     });
 
     const savedFolder = await this.documentsRepository.save(folder);
@@ -106,6 +109,7 @@ export class DocumentsService {
     projectId: string,
     file: Express.Multer.File,
     description: string | undefined,
+    confidentiality: ConfidentialityLevel | undefined,
     parentId: string | undefined,
     userId: string,
     userRole: UserRole,
@@ -129,20 +133,28 @@ export class DocumentsService {
       throw new ForbiddenException('You do not have permission to upload documents to this project');
     }
 
-    return this.saveFile({ projectId, parentId: parentId || null }, file, description, userId);
+    // Default to PUBLIC if not provided
+    const level = confidentiality || ConfidentialityLevel.PUBLIC;
+
+    return this.saveFile({ projectId, parentId: parentId || null }, file, description, level, userId);
   }
 
   async uploadFiles(
     projectId: string,
     files: Express.Multer.File[],
     description: string | undefined,
+    confidentiality: ConfidentialityLevel | undefined,
     parentId: string | undefined,
     userId: string,
     userRole: UserRole,
   ) {
     const results = [];
+    const level = confidentiality || ConfidentialityLevel.PUBLIC;
     for (const file of files) {
-      const saved = await this.uploadFile(projectId, file, description, parentId, userId, userRole);
+      // Re-using uploadFile would re-fetch project every time, but it's safer. 
+      // Optimized: check permission once, then loop saveFile.
+      // For now, let's reuse uploadFile for simplicity unless performance is key.
+      const saved = await this.uploadFile(projectId, file, description, level, parentId, userId, userRole);
       results.push(saved);
     }
     return results;
@@ -152,6 +164,7 @@ export class DocumentsService {
     reportId: string,
     file: Express.Multer.File,
     description: string | undefined,
+    confidentiality: ConfidentialityLevel | undefined,
     userId: string,
     userRole: UserRole,
   ) {
@@ -172,19 +185,22 @@ export class DocumentsService {
       throw new ForbiddenException('You do not have permission to upload files to this report');
     }
 
-    return this.saveFile({ reportId }, file, description, userId);
+    const level = confidentiality || ConfidentialityLevel.PUBLIC;
+    return this.saveFile({ reportId }, file, description, level, userId);
   }
 
   async uploadFilesToReport(
     reportId: string,
     files: Express.Multer.File[],
     description: string | undefined,
+    confidentiality: ConfidentialityLevel | undefined,
     userId: string,
     userRole: UserRole,
   ) {
     const results = [];
+    const level = confidentiality || ConfidentialityLevel.PUBLIC;
     for (const file of files) {
-      const saved = await this.uploadFileToReport(reportId, file, description, userId, userRole);
+      const saved = await this.uploadFileToReport(reportId, file, description, level, userId, userRole);
       results.push(saved);
     }
     return results;
@@ -204,16 +220,38 @@ export class DocumentsService {
     const canAccess =
       [UserRole.BOSS, UserRole.DEVOPS, UserRole.SUPERADMIN, UserRole.PROJECT_MANAGER].includes(userRole) ||
       project.managerId === userId ||
-      project.assignments.some((a) => a.developerId === userId);
+      project.assignments.some((a) => a.developerId === userId) ||
+      userRole === 'VISITOR'; // assuming VISITOR can access if they have project permission checked by controller/guard
 
     if (!canAccess) {
       throw new ForbiddenException('You do not have access to this project');
     }
 
-    return this.documentsRepository.find({
-      where: { projectId, ...(includeArchived ? {} : { isArchived: false }) },
+    const where: any = { projectId, ...(includeArchived ? {} : { isArchived: false }) };
+
+    let documents = await this.documentsRepository.find({
+      where,
       order: { uploadedAt: 'DESC' },
     });
+
+    // Post-filtering for Confidentiality
+    documents = documents.filter(doc => {
+      // High privilege or Creator always sees it
+      if ([UserRole.BOSS, UserRole.SUPERADMIN, UserRole.DEVOPS, UserRole.PROJECT_MANAGER].includes(userRole)) return true;
+      if (doc.uploadedById === userId) return true;
+
+      // Confidential check
+      if (doc.confidentiality === ConfidentialityLevel.CONFIDENTIAL) {
+        // High privilege users already returned true above.
+        // So others (DEVELOPER, VISITOR) cannot see it.
+        return false;
+      }
+
+      // If Public, everyone sees it.
+      return true;
+    });
+
+    return documents;
   }
 
   async findOne(id: string, userId: string, userRole: UserRole) {
@@ -226,22 +264,39 @@ export class DocumentsService {
       throw new NotFoundException('Document not found');
     }
 
-    // Check access permissions
+    // 1. Basic Access Check (Project/Report relation)
     const canAccessProject =
       document.project &&
       ([UserRole.BOSS, UserRole.DEVOPS, UserRole.SUPERADMIN, UserRole.PROJECT_MANAGER].includes(userRole) ||
         document.project.managerId === userId ||
-        document.project.assignments.some((a) => a.developerId === userId));
+        document.project.assignments.some((a) => a.developerId === userId) || userRole === 'VISITOR');
 
     const canAccessReport =
       document.report &&
       ([UserRole.BOSS, UserRole.DEVOPS, UserRole.SUPERADMIN, UserRole.PROJECT_MANAGER].includes(userRole) ||
-        document.report.createdById === userId);
+        document.report.createdById === userId || userRole === 'VISITOR');
 
     if (!(canAccessProject || canAccessReport)) {
       throw new ForbiddenException('You do not have access to this document');
     }
 
+    // 2. Confidentiality Check
+
+    // High privilege or Creator allows access regardless of confidentiality
+    if ([UserRole.BOSS, UserRole.SUPERADMIN, UserRole.DEVOPS, UserRole.PROJECT_MANAGER].includes(userRole)) {
+      return document;
+    }
+    if (document.uploadedById === userId) {
+      return document;
+    }
+
+    // If Confidential, reject others
+    if (document.confidentiality === ConfidentialityLevel.CONFIDENTIAL) {
+      // Developers and Visitors cannot see confidential
+      throw new ForbiddenException('This document is confidential.');
+    }
+
+    // If Public, allow
     return document;
   }
 
@@ -252,7 +307,8 @@ export class DocumentsService {
     const canDelete =
       [UserRole.BOSS, UserRole.DEVOPS, UserRole.SUPERADMIN, UserRole.PROJECT_MANAGER].includes(userRole) ||
       document.project?.managerId === userId ||
-      document.report?.createdById === userId;
+      document.report?.createdById === userId ||
+      document.uploadedById === userId;
 
     if (!canDelete) {
       throw new ForbiddenException('You do not have permission to archive this document');
@@ -267,7 +323,7 @@ export class DocumentsService {
   }
 
   async getFileBuffer(id: string, userId: string, userRole: UserRole) {
-    const document = await this.findOne(id, userId, userRole);
+    const document = await this.findOne(id, userId, userRole); // reuse findOne for checks
     const fileBuffer = await fs.readFile(document.path);
 
     // Audit Log: Download/View
@@ -275,19 +331,24 @@ export class DocumentsService {
       userId,
       'DOWNLOAD_DOCUMENT',
       `Accessed document "${document.originalName}"`,
-      document.projectId || undefined // projectId might be null if it's a report doc, verify entity
+      document.projectId || undefined
     );
 
     return { buffer: fileBuffer, document };
   }
 
   async unarchive(id: string, userId: string, userRole: UserRole) {
-    const document = await this.findOne(id, userId, userRole);
+    // Basic checks first
+    const document = await this.documentsRepository.findOne({ where: { id }, relations: ['project', 'report'] });
+    // Not using this.findOne because it might filter out archived ones depending on logic, but main issue is permissions.
+
+    if (!document) throw new NotFoundException('Document not found');
 
     const canRestore =
       [UserRole.BOSS, UserRole.DEVOPS, UserRole.SUPERADMIN, UserRole.PROJECT_MANAGER].includes(userRole) ||
       document.project?.managerId === userId ||
-      document.report?.createdById === userId;
+      document.report?.createdById === userId ||
+      document.uploadedById === userId;
 
     if (!canRestore) {
       throw new ForbiddenException('You do not have permission to unarchive this document');
@@ -302,12 +363,15 @@ export class DocumentsService {
   }
 
   async hardDelete(id: string, userId: string, userRole: UserRole) {
-    const document = await this.findOne(id, userId, userRole);
+    // Basic checks first
+    const document = await this.documentsRepository.findOne({ where: { id }, relations: ['project', 'report'] });
+    if (!document) throw new NotFoundException('Document not found');
 
     const canDelete =
       [UserRole.BOSS, UserRole.DEVOPS, UserRole.SUPERADMIN, UserRole.PROJECT_MANAGER].includes(userRole) ||
       document.project?.managerId === userId ||
-      document.report?.createdById === userId;
+      document.report?.createdById === userId ||
+      document.uploadedById === userId;
 
     if (!canDelete) {
       throw new ForbiddenException('You do not have permission to permanently delete this document');
@@ -335,16 +399,35 @@ export class DocumentsService {
 
     const canAccess =
       [UserRole.BOSS, UserRole.DEVOPS, UserRole.SUPERADMIN, UserRole.PROJECT_MANAGER].includes(userRole) ||
-      report.createdById === userId;
+      report.createdById === userId || userRole === 'VISITOR';
 
     if (!canAccess) {
       throw new ForbiddenException('You do not have access to this report');
     }
 
-    return this.documentsRepository.find({
-      where: { reportId, ...(includeArchived ? {} : { isArchived: false }) },
+    const where: any = { reportId, ...(includeArchived ? {} : { isArchived: false }) };
+
+    let documents = await this.documentsRepository.find({
+      where,
       order: { uploadedAt: 'DESC' },
     });
+
+    // Post-filtering for Confidentiality
+    documents = documents.filter(doc => {
+      // High privilege or Creator always sees it
+      if ([UserRole.BOSS, UserRole.SUPERADMIN, UserRole.DEVOPS, UserRole.PROJECT_MANAGER].includes(userRole)) return true;
+      if (doc.uploadedById === userId) return true;
+      if (report.createdById === userId) return true; // Report owner sees all docs attached to report
+
+      // Confidential check
+      if (doc.confidentiality === ConfidentialityLevel.CONFIDENTIAL) {
+        return false;
+      }
+
+      // If Public, everyone sees it.
+      return true;
+    });
+
+    return documents;
   }
 }
-

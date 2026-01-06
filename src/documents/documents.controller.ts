@@ -21,6 +21,7 @@ import { Response } from 'express';
 import { DocumentsService } from './documents.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { Document, ConfidentialityLevel } from '../entities/document.entity';
 
 @ApiTags('documents')
 @Controller('documents')
@@ -53,6 +54,11 @@ export class DocumentsController {
         description: {
           type: 'string',
         },
+        confidentiality: {
+          type: 'string',
+          enum: ['CONFIDENTIAL', 'PUBLIC'],
+          default: 'PUBLIC'
+        },
         parentId: {
           type: 'string',
           nullable: true,
@@ -65,13 +71,14 @@ export class DocumentsController {
     @Param('projectId') projectId: string,
     @UploadedFile() file: Express.Multer.File,
     @Body('description') description: string,
+    @Body('confidentiality') confidentiality: ConfidentialityLevel,
     @Body('parentId') parentId: string,
     @CurrentUser() user: any,
   ) {
     if (!file) {
       throw new Error('No file uploaded');
     }
-    return this.documentsService.uploadFile(projectId, file, description, parentId, user.id, user.role);
+    return this.documentsService.uploadFile(projectId, file, description, confidentiality, parentId, user.id, user.role);
   }
 
   @Post('upload-many/:projectId')
@@ -88,6 +95,11 @@ export class DocumentsController {
         description: {
           type: 'string',
         },
+        confidentiality: {
+          type: 'string',
+          enum: ['CONFIDENTIAL', 'PUBLIC'],
+          default: 'PUBLIC'
+        },
         parentId: {
           type: 'string',
           nullable: true,
@@ -100,13 +112,14 @@ export class DocumentsController {
     @Param('projectId') projectId: string,
     @UploadedFiles() files: Express.Multer.File[],
     @Body('description') description: string,
+    @Body('confidentiality') confidentiality: ConfidentialityLevel,
     @Body('parentId') parentId: string,
     @CurrentUser() user: any,
   ) {
     if (!files || files.length === 0) {
       throw new Error('No files uploaded');
     }
-    return this.documentsService.uploadFiles(projectId, files, description, parentId, user.id, user.role);
+    return this.documentsService.uploadFiles(projectId, files, description, confidentiality, parentId, user.id, user.role);
   }
 
   @Post('upload-report/:reportId')
@@ -123,6 +136,11 @@ export class DocumentsController {
         description: {
           type: 'string',
         },
+        confidentiality: {
+          type: 'string',
+          enum: ['CONFIDENTIAL', 'PUBLIC'],
+          default: 'PUBLIC'
+        },
       },
     },
   })
@@ -131,12 +149,13 @@ export class DocumentsController {
     @Param('reportId') reportId: string,
     @UploadedFile() file: Express.Multer.File,
     @Body('description') description: string,
+    @Body('confidentiality') confidentiality: ConfidentialityLevel,
     @CurrentUser() user: any,
   ) {
     if (!file) {
       throw new Error('No file uploaded');
     }
-    return this.documentsService.uploadFileToReport(reportId, file, description, user.id, user.role);
+    return this.documentsService.uploadFileToReport(reportId, file, description, confidentiality, user.id, user.role);
   }
 
   @Post('upload-many-report/:reportId')
@@ -153,6 +172,11 @@ export class DocumentsController {
         description: {
           type: 'string',
         },
+        confidentiality: {
+          type: 'string',
+          enum: ['CONFIDENTIAL', 'PUBLIC'],
+          default: 'PUBLIC'
+        },
       },
     },
   })
@@ -161,12 +185,13 @@ export class DocumentsController {
     @Param('reportId') reportId: string,
     @UploadedFiles() files: Express.Multer.File[],
     @Body('description') description: string,
+    @Body('confidentiality') confidentiality: ConfidentialityLevel,
     @CurrentUser() user: any,
   ) {
     if (!files || files.length === 0) {
       throw new Error('No files uploaded');
     }
-    return this.documentsService.uploadFilesToReport(reportId, files, description, user.id, user.role);
+    return this.documentsService.uploadFilesToReport(reportId, files, description, confidentiality, user.id, user.role);
   }
 
   @Get('project/:projectId')
@@ -224,4 +249,3 @@ export class DocumentsController {
     return this.documentsService.hardDelete(id, user.id, user.role);
   }
 }
-
