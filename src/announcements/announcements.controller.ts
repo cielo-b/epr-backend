@@ -25,7 +25,7 @@ export class AnnouncementsController {
     constructor(private readonly announcementsService: AnnouncementsService) { }
 
     @Post()
-    @Roles(UserRole.PROJECT_MANAGER, UserRole.BOSS, UserRole.SUPERADMIN)
+    @Roles(UserRole.PROJECT_MANAGER, UserRole.BOSS, UserRole.SUPERADMIN, UserRole.SECRETARY)
     @ApiOperation({ summary: 'Create a project announcement' })
     create(@Body() createAnnouncementDto: CreateAnnouncementDto, @CurrentUser() user: any) {
         return this.announcementsService.create(createAnnouncementDto, user.id);
@@ -33,24 +33,24 @@ export class AnnouncementsController {
 
     @Get()
     @ApiOperation({ summary: 'Get all announcements' })
-    findAll() {
-        return this.announcementsService.findAll();
+    findAll(@CurrentUser() user: any) {
+        return this.announcementsService.findAll(user);
     }
 
     @Get('recent')
     @ApiOperation({ summary: 'Get recent announcements' })
-    findRecent(@Query('limit') limit: number) {
-        return this.announcementsService.findRecent(limit);
+    findRecent(@Query('limit') limit: number, @CurrentUser() user: any) {
+        return this.announcementsService.findRecent(limit, user);
     }
 
     @Get('project/:projectId')
     @ApiOperation({ summary: 'Get announcements for a specific project' })
-    findByProject(@Param('projectId') projectId: string) {
-        return this.announcementsService.findByProject(projectId);
+    findByProject(@Param('projectId') projectId: string, @CurrentUser() user: any) {
+        return this.announcementsService.findByProject(projectId, user);
     }
 
     @Delete(':id')
-    @Roles(UserRole.PROJECT_MANAGER, UserRole.BOSS, UserRole.SUPERADMIN)
+    @Roles(UserRole.PROJECT_MANAGER, UserRole.BOSS, UserRole.SUPERADMIN, UserRole.SECRETARY)
     @ApiOperation({ summary: 'Delete an announcement' })
     remove(@Param('id') id: string) {
         return this.announcementsService.remove(id);

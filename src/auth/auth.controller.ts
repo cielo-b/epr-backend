@@ -7,11 +7,12 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { VerifySuperAdminKeyDto } from './dto/verify-superadmin-key.dto';
 import { CreateSuperAdminDto } from './dto/create-superadmin.dto';
+import { SetPasswordDto } from './dto/set-password.dto';
 
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(private readonly authService: AuthService) { }
 
   @Public()
   @Post('login')
@@ -37,6 +38,15 @@ export class AuthController {
   @ApiResponse({ status: 409, description: 'A Superadmin already exists.' })
   async createSuperAdmin(@Body() body: CreateSuperAdminDto) {
     return this.authService.createSuperAdmin(body);
+  }
+
+  @Public()
+  @Post('set-password')
+  @ApiOperation({ summary: 'Set password using invitation/reset token' })
+  @ApiResponse({ status: 201, description: 'Password set successfully.' })
+  @ApiResponse({ status: 401, description: 'Invalid or expired token.' })
+  async setPassword(@Body() body: SetPasswordDto) {
+    return this.authService.setPassword(body.token, body.newPassword);
   }
 
   @Get('profile')

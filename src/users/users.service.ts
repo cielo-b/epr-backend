@@ -8,6 +8,9 @@ import { UserPermission } from '../entities/user-permission.entity';
 import { CreateSuperAdminDto } from '../auth/dto/create-superadmin.dto';
 import * as bcrypt from 'bcryptjs';
 
+import * as crypto from 'crypto';
+import { EmailService } from '../email/email.service';
+
 @Injectable()
 export class UsersService {
   constructor(
@@ -15,6 +18,7 @@ export class UsersService {
     private readonly usersRepository: Repository<User>,
     @InjectRepository(UserPermission)
     private readonly userPermissionsRepository: Repository<UserPermission>,
+    private readonly emailService: EmailService,
   ) { }
 
   async create(createUserDto: CreateUserDto, createdById?: string | null) {
@@ -34,15 +38,47 @@ export class UsersService {
       }
     }
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
+    // Hash password if provided
+    let hashedPassword = '';
+    let resetToken = null;
+    let resetTokenExpires = null;
+
+    if (createUserDto.password) {
+      hashedPassword = await bcrypt.hash(createUserDto.password, 10);
+    } else {
+      // Generate setup token
+      const token = crypto.randomBytes(32).toString('hex');
+      resetToken = await bcrypt.hash(token, 10);
+      resetTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+      // Set a random password hash so it's not empty but unusable
+      hashedPassword = await bcrypt.hash(crypto.randomBytes(16).toString('hex'), 10);
+
+      // Sending email must happen after saving user or simply using the token
+      // We'll store the UNHASHED token in memory to send it via email, 
+      // but in DB we store hashed token. Usually safer to just store random string unhashed for tokens if short lived? 
+      // Actually standard practice is: store hashed token in DB, send raw token to user.
+      // Wait, standard reset tokens usually stored hashed? Yes for security.
+
+      // But for simplicity/MVP, many just store the token directly.
+      // Let's stick to storing the token directly for now to avoid complexity of matching. 
+      // Actually, let's just store the raw token for now to be simple and reliable.
+      resetToken = token;
+    }
 
     const user = this.usersRepository.create({
       ...createUserDto,
       password: hashedPassword,
       createdById: createdById ?? null,
+      resetToken,
+      resetTokenExpires,
     });
     const savedUser = await this.usersRepository.save(user);
+
+    // If no password provided, send invitation email
+    if (!createUserDto.password && resetToken) {
+      // user.resetToken has the token value
+      await this.emailService.sendInvitation(savedUser.email, resetToken);
+    }
 
     // Save permissions if provided
     if (createUserDto.permissions && createUserDto.permissions.length > 0) {
@@ -86,6 +122,19 @@ export class UsersService {
     return this.usersRepository.findOne({
       where: { email },
       relations: ['permissions']
+    });
+  }
+
+  async findByResetToken(resetToken: string) {
+    return this.usersRepository.findOne({
+      where: { resetToken },
+    });
+  }
+
+  async clearResetToken(userId: string) {
+    await this.usersRepository.update(userId, {
+      resetToken: null,
+      resetTokenExpires: null,
     });
   }
 

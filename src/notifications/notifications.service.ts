@@ -37,7 +37,7 @@ export class NotificationsService {
             await this.emailService.sendEmail(
                 user.email,
                 `Notification: ${title}`,
-                `${message}\n\nThis is an automated notification from RMSoft MIS.`,
+                message,
             );
         }
 

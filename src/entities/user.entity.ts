@@ -91,6 +91,12 @@ export class User {
 
   @OneToMany(() => UserPermission, (permission) => permission.user)
   permissions: UserPermission[];
+
+  @Column({ nullable: true })
+  resetToken: string;
+
+  @Column({ type: 'timestamp', nullable: true })
+  resetTokenExpires: Date;
 }
 
 

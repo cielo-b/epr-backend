@@ -4,11 +4,12 @@ import { UsersService } from './users.service';
 import { UsersController } from './users.controller';
 import { User } from '../entities/user.entity';
 import { UserPermission } from '../entities/user-permission.entity';
+import { EmailService } from '@/email/email.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([User, UserPermission])],
   controllers: [UsersController],
-  providers: [UsersService],
+  providers: [UsersService, EmailService],
   exports: [UsersService],
 })
 export class UsersModule { }

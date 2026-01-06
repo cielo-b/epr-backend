@@ -65,8 +65,8 @@ export class ProjectsService {
   }
 
   async findAll(userId: string, userRole: UserRole) {
-    // Boss, PM, DevOps, and Superadmin can see all projects
-    if ([UserRole.BOSS, UserRole.PROJECT_MANAGER, UserRole.DEVOPS, UserRole.SUPERADMIN].includes(userRole)) {
+    // Boss, PM, DevOps, Superadmin, and Secretary can see all projects
+    if ([UserRole.BOSS, UserRole.PROJECT_MANAGER, UserRole.DEVOPS, UserRole.SUPERADMIN, UserRole.SECRETARY].includes(userRole)) {
       return this.projectsRepository.find({
         relations: ['manager', 'creator', 'assignments', 'assignments.developer', 'documents', 'devServer', 'productionServer'],
         order: { createdAt: 'DESC' },
@@ -135,7 +135,7 @@ export class ProjectsService {
     // Check access permissions
 
     // 1. Role-based access
-    if ([UserRole.BOSS, UserRole.PROJECT_MANAGER, UserRole.DEVOPS, UserRole.SUPERADMIN].includes(userRole)) {
+    if ([UserRole.BOSS, UserRole.PROJECT_MANAGER, UserRole.DEVOPS, UserRole.SUPERADMIN, UserRole.SECRETARY].includes(userRole)) {
       return project;
     }
 

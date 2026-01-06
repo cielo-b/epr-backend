@@ -36,7 +36,7 @@ export class Announcement {
     @ManyToOne(() => User)
     author: User;
 
-    @Column()
+    @Column({ nullable: true })
     projectId: string;
 
     @ManyToOne(() => Project)

@@ -24,7 +24,7 @@ export class MeetingsController {
     constructor(private readonly meetingsService: MeetingsService) { }
 
     @Post()
-    @Roles(UserRole.PROJECT_MANAGER, UserRole.BOSS, UserRole.SUPERADMIN)
+    @Roles(UserRole.PROJECT_MANAGER, UserRole.BOSS, UserRole.SUPERADMIN, UserRole.SECRETARY)
     @ApiOperation({ summary: 'Schedule a new meeting' })
     create(@Body() createMeetingDto: CreateMeetingDto, @CurrentUser() user: any) {
         return this.meetingsService.create(createMeetingDto, user.id);
@@ -43,7 +43,7 @@ export class MeetingsController {
     }
 
     @Delete(':id')
-    @Roles(UserRole.PROJECT_MANAGER, UserRole.BOSS, UserRole.SUPERADMIN)
+    @Roles(UserRole.PROJECT_MANAGER, UserRole.BOSS, UserRole.SUPERADMIN, UserRole.SECRETARY)
     @ApiOperation({ summary: 'Delete a meeting' })
     remove(@Param('id') id: string) {
         return this.meetingsService.remove(id);
