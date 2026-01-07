@@ -288,7 +288,10 @@ export class ProjectsService {
     userId: string,
     userRole: UserRole,
   ) {
-    const project = await this.projectsRepository.findOne({ where: { id: projectId } });
+    const project = await this.projectsRepository.findOne({
+      where: { id: projectId },
+      relations: ['manager'] // Load manager to display name in notification
+    });
 
     if (!project) {
       throw new NotFoundException('Project not found');
@@ -337,7 +340,7 @@ export class ProjectsService {
     await this.notificationsService.notifyUser(
       developer.id,
       `New Project Assignment: ${project.name}`,
-      `You have been assigned to a new project.\n\nProject: ${project.name}\nStatus: ${project.status}\nManager: ${project.manager?.firstName} ${project.manager?.lastName}`,
+      `Hello ${developer.firstName} ${developer.lastName},\n\nYou have been assigned to a new project.\n\nProject: ${project.name}\nStatus: ${project.status}\nManager: ${project.manager ? `${project.manager.firstName} ${project.manager.lastName}` : 'Not assigned'}`,
       'INFO'
     );
 

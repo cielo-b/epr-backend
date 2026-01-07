@@ -44,7 +44,11 @@ export class NotificationsService {
 
         // 4. Send to Slack (Global or User-specific if configured)
         // For now, mirroring important notifications or all notifications to a central channel
-        await this.slackService.sendNotification(title, message, type);
+        let slackMessage = message;
+        if (user) {
+            slackMessage = `*Recipient: ${user.firstName} ${user.lastName}*\n${message}`;
+        }
+        await this.slackService.sendNotification(title, slackMessage, type);
 
         return saved;
     }
