@@ -2,9 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Notification } from '../entities/notification.entity';
+import { SlackService } from './slack.service';
+import { User } from '../entities/user.entity';
 import { NotificationsGateway } from './notifications.gateway';
 import { EmailService } from '../email/email.service';
-import { User } from '../entities/user.entity';
 
 @Injectable()
 export class NotificationsService {
@@ -15,6 +16,7 @@ export class NotificationsService {
         private readonly usersRepository: Repository<User>,
         private readonly notificationsGateway: NotificationsGateway,
         private readonly emailService: EmailService,
+        private readonly slackService: SlackService,
     ) { }
 
     async notifyUser(userId: string, title: string, message: string, type: 'INFO' | 'SUCCESS' | 'WARNING' | 'ERROR' = 'INFO') {
@@ -30,8 +32,7 @@ export class NotificationsService {
         // 2. Emit via WebSocket
         this.notificationsGateway.sendToUser(userId, saved);
 
-        // 3. Send Email (Always, as per user request "email sending of every notification")
-        // Fetch user email
+        // 3. Send Email
         const user = await this.usersRepository.findOneBy({ id: userId });
         if (user && user.email) {
             await this.emailService.sendEmail(
@@ -40,6 +41,10 @@ export class NotificationsService {
                 message,
             );
         }
+
+        // 4. Send to Slack (Global or User-specific if configured)
+        // For now, mirroring important notifications or all notifications to a central channel
+        await this.slackService.sendNotification(title, message, type);
 
         return saved;
     }

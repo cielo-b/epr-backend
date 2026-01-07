@@ -7,13 +7,15 @@ import { Notification } from '../entities/notification.entity';
 import { EmailModule } from '../email/email.module';
 import { User } from '../entities/user.entity';
 
+import { SlackService } from './slack.service';
+
 @Module({
     imports: [
         TypeOrmModule.forFeature([Notification, User]),
         EmailModule,
     ],
     controllers: [NotificationsController],
-    providers: [NotificationsService, NotificationsGateway],
+    providers: [NotificationsService, NotificationsGateway, SlackService],
     exports: [NotificationsService],
 })
 export class NotificationsModule { }
