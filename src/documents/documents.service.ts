@@ -221,6 +221,7 @@ export class DocumentsService {
       [UserRole.BOSS, UserRole.DEVOPS, UserRole.SUPERADMIN, UserRole.PROJECT_MANAGER].includes(userRole) ||
       project.managerId === userId ||
       project.assignments.some((a) => a.developerId === userId) ||
+      userRole === UserRole.SECRETARY ||
       userRole === 'VISITOR'; // assuming VISITOR can access if they have project permission checked by controller/guard
 
     if (!canAccess) {
@@ -268,12 +269,14 @@ export class DocumentsService {
     const canAccessProject =
       document.project &&
       ([UserRole.BOSS, UserRole.DEVOPS, UserRole.SUPERADMIN, UserRole.PROJECT_MANAGER].includes(userRole) ||
+        userRole === UserRole.SECRETARY ||
         document.project.managerId === userId ||
         document.project.assignments.some((a) => a.developerId === userId) || userRole === 'VISITOR');
 
     const canAccessReport =
       document.report &&
       ([UserRole.BOSS, UserRole.DEVOPS, UserRole.SUPERADMIN, UserRole.PROJECT_MANAGER].includes(userRole) ||
+        userRole === UserRole.SECRETARY ||
         document.report.createdById === userId || userRole === 'VISITOR');
 
     if (!(canAccessProject || canAccessReport)) {
@@ -324,7 +327,15 @@ export class DocumentsService {
 
   async getFileBuffer(id: string, userId: string, userRole: UserRole) {
     const document = await this.findOne(id, userId, userRole); // reuse findOne for checks
-    const fileBuffer = await fs.readFile(document.path);
+    let fileBuffer: Buffer;
+    try {
+      fileBuffer = await fs.readFile(document.path);
+    } catch (error: any) {
+      if (error.code === 'ENOENT') {
+        throw new NotFoundException('File not found on server');
+      }
+      throw error;
+    }
 
     // Audit Log: Download/View
     await this.activityService.logAction(
@@ -399,6 +410,7 @@ export class DocumentsService {
 
     const canAccess =
       [UserRole.BOSS, UserRole.DEVOPS, UserRole.SUPERADMIN, UserRole.PROJECT_MANAGER].includes(userRole) ||
+      userRole === UserRole.SECRETARY ||
       report.createdById === userId || userRole === 'VISITOR';
 
     if (!canAccess) {
