@@ -42,6 +42,9 @@ export class ProjectAssignment {
 
   @Column({ type: 'text', nullable: true })
   notes?: string | null;
+
+  @Column({ default: 'General' })
+  role: string;
 }
 
 

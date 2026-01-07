@@ -290,14 +290,13 @@ export class ProjectsService {
   ) {
     const project = await this.projectsRepository.findOne({
       where: { id: projectId },
-      relations: ['manager'] // Load manager to display name in notification
+      relations: ['manager']
     });
 
     if (!project) {
       throw new NotFoundException('Project not found');
     }
 
-    // Only PM (who manages the project), Boss, DevOps, or Superadmin can assign developers
     const canAssign =
       [UserRole.BOSS, UserRole.SUPERADMIN, UserRole.PROJECT_MANAGER].includes(userRole) ||
       (userRole === UserRole.PROJECT_MANAGER && project.managerId === userId);
@@ -306,45 +305,64 @@ export class ProjectsService {
       throw new ForbiddenException('You do not have permission to assign developers to this project');
     }
 
-    // Verify the developer exists and has DEVELOPER role
-    const developer = await this.usersRepository.findOne({
-      where: { id: assignDeveloperDto.developerId },
-    });
+    const developerIds = assignDeveloperDto.developerIds ||
+      (assignDeveloperDto.developerId ? [assignDeveloperDto.developerId] : []);
 
-    if (!developer || developer.role !== UserRole.DEVELOPER) {
-      throw new NotFoundException('Developer not found');
+    if (developerIds.length === 0) {
+      // Nothing to do, but maybe validate that at least one was provided?
+      // For now just return empty
+      return [];
     }
 
-    // Check if already assigned
-    const existingAssignment = await this.assignmentsRepository.findOne({
-      where: {
+    const assignmentsResults = [];
+
+    for (const devId of developerIds) {
+      // Verify the developer exists and has DEVELOPER role
+      const developer = await this.usersRepository.findOne({
+        where: { id: devId },
+      });
+
+      if (!developer || developer.role !== UserRole.DEVELOPER) {
+        // Skip or throw? Let's skip invalid ones but maybe log warning
+        console.warn(`Skipping invalid developer ID: ${devId}`);
+        continue;
+      }
+
+      // Check if already assigned
+      const existingAssignment = await this.assignmentsRepository.findOne({
+        where: {
+          projectId,
+          developerId: devId,
+        },
+      });
+
+      if (existingAssignment) {
+        // Skip if already assigned
+        continue;
+      }
+
+      const assignment = this.assignmentsRepository.create({
         projectId,
-        developerId: assignDeveloperDto.developerId,
-      },
-    });
+        developerId: devId,
+        assignedById: userId,
+        notes: assignDeveloperDto.notes,
+        role: assignDeveloperDto.role || 'General',
+      });
+      const savedAssignment = await this.assignmentsRepository.save(assignment);
+      assignmentsResults.push(savedAssignment);
 
-    if (existingAssignment) {
-      throw new ForbiddenException('Developer is already assigned to this project');
+      await this.activityService.logAction(userId, 'ASSIGN_DEVELOPER', `Assigned developer ${developer.firstName} ${developer.lastName} as ${assignment.role}`, projectId);
+
+      // Notify the developer about the assignment
+      await this.notificationsService.notifyUser(
+        developer.id,
+        `New Project Assignment: ${project.name}`,
+        `Hello ${developer.firstName} ${developer.lastName},\n\nYou have been assigned to a new project.\n\nProject: ${project.name}\nRole: ${assignment.role}\nStatus: ${project.status}\nManager: ${project.manager ? `${project.manager.firstName} ${project.manager.lastName}` : 'Not assigned'}`,
+        'INFO'
+      );
     }
 
-    const assignment = this.assignmentsRepository.create({
-      projectId,
-      developerId: assignDeveloperDto.developerId,
-      assignedById: userId,
-      notes: assignDeveloperDto.notes,
-    });
-    const savedAssignment = await this.assignmentsRepository.save(assignment);
-    await this.activityService.logAction(userId, 'ASSIGN_DEVELOPER', `Assigned developer ${developer.firstName} ${developer.lastName}`, projectId);
-
-    // Notify the developer about the assignment
-    await this.notificationsService.notifyUser(
-      developer.id,
-      `New Project Assignment: ${project.name}`,
-      `Hello ${developer.firstName} ${developer.lastName},\n\nYou have been assigned to a new project.\n\nProject: ${project.name}\nStatus: ${project.status}\nManager: ${project.manager ? `${project.manager.firstName} ${project.manager.lastName}` : 'Not assigned'}`,
-      'INFO'
-    );
-
-    return savedAssignment;
+    return assignmentsResults;
   }
 
   async removeDeveloper(projectId: string, developerId: string, userId: string, userRole: UserRole) {
