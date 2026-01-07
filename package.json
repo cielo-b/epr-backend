@@ -65,6 +65,7 @@
     "@types/passport-local": "^1.0.0",
     "@typescript-eslint/eslint-plugin": "^6.17.0",
     "@typescript-eslint/parser": "^6.17.0",
+    "commander": "^14.0.2",
     "eslint": "^8.56.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-prettier": "^5.1.2",
@@ -98,5 +99,14 @@
     ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
+  },
+  "pnpm": {
+    "packageExtensions": {
+      "@nestjs/cli": {
+        "dependencies": {
+          "commander": "*"
+        }
+      }
+    }
   }
 }
