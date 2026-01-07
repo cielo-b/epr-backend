@@ -43,7 +43,8 @@ export class ProjectHealthService {
 
             try {
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 10000);
+                // Increased timeout to 30 seconds to avoid aborting valid requests on slow networks/servers
+                const timeoutId = setTimeout(() => controller.abort(), 30000);
 
                 const response = await fetch(healthUrl, { signal: controller.signal });
                 clearTimeout(timeoutId);

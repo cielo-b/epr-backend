@@ -1,4 +1,4 @@
-import { Controller, Get, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, UseGuards, Request } from '@nestjs/common';
 import { ActivityService } from './activity.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { ApiTags } from '@nestjs/swagger';
@@ -15,7 +15,7 @@ export class ActivityController {
     }
 
     @Get('recent')
-    getRecentLogs() {
-        return this.service.getRecentLogs();
+    getRecentLogs(@Request() req: any) {
+        return this.service.getRecentLogs(req.user.id, req.user.role);
     }
 }
