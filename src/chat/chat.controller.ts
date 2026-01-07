@@ -9,10 +9,16 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ChatGateway } from './chat.gateway';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
+import * as fs from 'fs';
 
 // Helper for file upload
+const uploadDir = '/opt/mis/uploads/chats';
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+}
+
 const storage = diskStorage({
-    destination: './uploads/chat',
+    destination: uploadDir,
     filename: (req, file, cb) => {
         const randomName = Array(32).fill(null).map(() => (Math.round(Math.random() * 16)).toString(16)).join('');
         return cb(null, `${randomName}${extname(file.originalname)}`);
@@ -31,7 +37,7 @@ export class ChatController {
     @UseInterceptors(FileInterceptor('file', { storage }))
     uploadFile(@UploadedFile() file: Express.Multer.File) {
         return {
-            url: `/uploads/chat/${file.filename}`,
+            url: `/uploads/chats/${file.filename}`,
             type: file.mimetype
         };
     }
