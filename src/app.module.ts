@@ -29,8 +29,14 @@ import { Meeting } from './entities/meeting.entity';
 import { AnnouncementsModule } from './announcements/announcements.module';
 import { MilestonesModule } from './milestones/milestones.module';
 import { MeetingsModule } from './meetings/meetings.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 import { ProjectComponent } from './entities/project-component.entity';
+import { ChatModule } from './chat/chat.module';
+import { Conversation } from './chat/entities/conversation.entity';
+import { Message } from './chat/entities/message.entity';
+import { ConversationParticipant } from './chat/entities/conversation-participant.entity';
+import { PushSubscription } from './entities/push-subscription.entity';
 
 @Module({
   imports: [
@@ -58,6 +64,10 @@ import { ProjectComponent } from './entities/project-component.entity';
           Milestone,
           Meeting,
           ProjectComponent,
+          Conversation,
+          Message,
+          ConversationParticipant,
+          PushSubscription,
         ],
         synchronize: true,
       }),
@@ -76,6 +86,8 @@ import { ProjectComponent } from './entities/project-component.entity';
     AnnouncementsModule,
     MilestonesModule,
     MeetingsModule,
+    NotificationsModule,
+    ChatModule,
   ],
 })
 export class AppModule { }

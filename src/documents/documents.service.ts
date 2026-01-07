@@ -9,6 +9,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 
 import { ActivityService } from '../activity/activity.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class DocumentsService {
@@ -20,6 +21,7 @@ export class DocumentsService {
     @InjectRepository(Report)
     private readonly reportsRepository: Repository<Report>,
     private readonly activityService: ActivityService,
+    private readonly notificationsService: NotificationsService,
   ) { }
 
   private async saveFile(
@@ -57,6 +59,17 @@ export class DocumentsService {
 
     if (target.projectId) {
       await this.activityService.logAction(userId, 'UPLOAD_DOCUMENT', `Uploaded document "${savedDoc.originalName}" (${confidentiality})`, target.projectId);
+
+      // Notify PM
+      const project = await this.projectsRepository.findOne({ where: { id: target.projectId } });
+      if (project && project.managerId && project.managerId !== userId) {
+        await this.notificationsService.notifyUser(
+          project.managerId,
+          'New Document Uploaded',
+          `Document "${savedDoc.originalName}" has been uploaded to project "${project.name}".`,
+          'INFO'
+        );
+      }
     }
 
     return savedDoc;

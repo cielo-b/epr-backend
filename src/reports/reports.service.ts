@@ -8,6 +8,7 @@ import { Project } from '../entities/project.entity';
 import { Report } from '../entities/report.entity';
 import { Document, ConfidentialityLevel } from '../entities/document.entity';
 import { Task, TaskStatus } from '../entities/task.entity';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class ReportsService {
@@ -22,6 +23,7 @@ export class ReportsService {
     private readonly documentsRepository: Repository<Document>,
     @InjectRepository(Task)
     private readonly tasksRepository: Repository<Task>,
+    private readonly notificationsService: NotificationsService,
   ) { }
 
   async create(createReportDto: CreateReportDto, userId: string) {
@@ -30,7 +32,34 @@ export class ReportsService {
       createdById: userId,
       confidentiality: (createReportDto.confidentiality as 'CONFIDENTIAL' | 'PUBLIC') || ConfidentialityLevel.PUBLIC,
     });
-    return this.reportsRepository.save(report);
+    const saved = await this.reportsRepository.save(report);
+
+    // Notify Project Manager and Team if linked to project
+    if (saved.projectId) {
+      const project = await this.projectsRepository.findOne({
+        where: { id: saved.projectId },
+        relations: ['manager', 'assignments', 'assignments.developer', 'creator']
+      });
+
+      if (project) {
+        const usersToNotify = new Set<string>();
+        if (project.managerId && project.managerId !== userId) usersToNotify.add(project.managerId);
+        project.assignments?.forEach(a => {
+          if (a.developerId && a.developerId !== userId) usersToNotify.add(a.developerId);
+        });
+
+        for (const targetId of usersToNotify) {
+          await this.notificationsService.notifyUser(
+            targetId,
+            `New Report: ${saved.title}`,
+            `A new report has been submitted for project "${project.name}".`,
+            'INFO'
+          );
+        }
+      }
+    }
+
+    return saved;
   }
 
   async findAll(userId: string, userRole: UserRole, projectId?: string) {

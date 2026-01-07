@@ -14,6 +14,7 @@ import { Report } from './report.entity';
 import { Task } from './task.entity';
 import { Notification } from './notification.entity';
 import { UserPermission } from './user-permission.entity';
+import { PushSubscription } from './push-subscription.entity';
 
 export enum UserRole {
   BOSS = 'BOSS',
@@ -91,6 +92,9 @@ export class User {
 
   @OneToMany(() => UserPermission, (permission) => permission.user)
   permissions: UserPermission[];
+
+  @OneToMany(() => PushSubscription, (subscription) => subscription.user)
+  pushSubscriptions: PushSubscription[];
 
   @Column({ nullable: true })
   resetToken: string;

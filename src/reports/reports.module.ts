@@ -7,9 +7,13 @@ import { Project } from '../entities/project.entity';
 import { User } from '../entities/user.entity';
 import { Document } from '../entities/document.entity';
 import { Task } from '../entities/task.entity';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Report, Project, User, Document, Task])],
+  imports: [
+    TypeOrmModule.forFeature([Report, Project, User, Document, Task]),
+    NotificationsModule
+  ],
   controllers: [ReportsController],
   providers: [ReportsService],
   exports: [ReportsService],

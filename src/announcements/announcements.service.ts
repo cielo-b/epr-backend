@@ -1,17 +1,21 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Brackets } from 'typeorm';
-import { Announcement } from '../entities/announcement.entity';
+import { Repository, Brackets, Not } from 'typeorm';
+import { Announcement, AnnouncementPriority } from '../entities/announcement.entity';
 import { CreateAnnouncementDto } from './dto/create-announcement.dto';
 import { ActivityService } from '../activity/activity.service';
-import { UserRole } from '../entities/user.entity';
+import { User, UserRole } from '../entities/user.entity';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class AnnouncementsService {
     constructor(
         @InjectRepository(Announcement)
         private readonly announcementRepository: Repository<Announcement>,
+        @InjectRepository(User)
+        private readonly userRepository: Repository<User>,
         private readonly activityService: ActivityService,
+        private readonly notificationsService: NotificationsService,
     ) { }
 
     async create(createAnnouncementDto: CreateAnnouncementDto, authorId: string) {
@@ -27,6 +31,30 @@ export class AnnouncementsService {
             `Posted a new announcement: ${announcement.message.substring(0, 50)}${announcement.message.length > 50 ? '...' : ''}`,
             announcement.projectId
         );
+
+        // Notify users
+        const author = await this.userRepository.findOne({ where: { id: authorId } });
+        const title = `New Announcement${announcement.priority === AnnouncementPriority.HIGH ? ' (High Priority)' : ''}`;
+        const message = announcement.message.substring(0, 100) + (announcement.message.length > 100 ? '...' : '');
+
+        if (!announcement.projectId) {
+            // Global announcement: notify all active users except author
+            const users = await this.userRepository.find({ where: { isActive: true, id: Not(authorId) } });
+            for (const user of users) {
+                await this.notificationsService.notifyUser(user.id, title, message, 'INFO');
+            }
+        } else {
+            // Project-specific: notify project manager and assigned developers
+            const users = await this.userRepository.find({
+                where: [
+                    { managedProjects: { id: announcement.projectId }, id: Not(authorId) },
+                    { assignedProjects: { projectId: announcement.projectId }, id: Not(authorId) }
+                ]
+            });
+            for (const user of users) {
+                await this.notificationsService.notifyUser(user.id, title, message, 'INFO');
+            }
+        }
 
         return saved;
     }

@@ -6,6 +6,7 @@ import { SlackService } from './slack.service';
 import { User } from '../entities/user.entity';
 import { NotificationsGateway } from './notifications.gateway';
 import { EmailService } from '../email/email.service';
+import { PushNotificationService } from './push-notification.service';
 
 @Injectable()
 export class NotificationsService {
@@ -17,9 +18,10 @@ export class NotificationsService {
         private readonly notificationsGateway: NotificationsGateway,
         private readonly emailService: EmailService,
         private readonly slackService: SlackService,
+        private readonly pushNotificationService: PushNotificationService,
     ) { }
 
-    async notifyUser(userId: string, title: string, message: string, type: 'INFO' | 'SUCCESS' | 'WARNING' | 'ERROR' = 'INFO') {
+    async notifyUser(userId: string, title: string, message: string, type: 'INFO' | 'SUCCESS' | 'WARNING' | 'ERROR' = 'INFO', options?: { skipEmail?: boolean, skipPush?: boolean, skipSlack?: boolean }) {
         // 1. Save to DB
         const notification = this.notificationsRepository.create({
             userId,
@@ -32,9 +34,18 @@ export class NotificationsService {
         // 2. Emit via WebSocket
         this.notificationsGateway.sendToUser(userId, saved);
 
-        // 3. Send Email
+        // 3. Send Browser Push Notification
+        if (!options?.skipPush) {
+            await this.pushNotificationService.sendPushNotification(userId, {
+                title,
+                body: message,
+                data: { notificationId: saved.id, type },
+            });
+        }
+
+        // 4. Send Email
         const user = await this.usersRepository.findOneBy({ id: userId });
-        if (user && user.email) {
+        if (user && user.email && !options?.skipEmail) {
             await this.emailService.sendEmail(
                 user.email,
                 `Notification: ${title}`,
@@ -42,13 +53,14 @@ export class NotificationsService {
             );
         }
 
-        // 4. Send to Slack (Global or User-specific if configured)
-        // For now, mirroring important notifications or all notifications to a central channel
-        let slackMessage = message;
-        if (user) {
-            slackMessage = `*Recipient: ${user.firstName} ${user.lastName}*\n${message}`;
+        // 5. Send to Slack
+        if (!options?.skipSlack) {
+            let slackMessage = message;
+            if (user) {
+                slackMessage = `*Recipient: ${user.firstName} ${user.lastName}*\n${message}`;
+            }
+            await this.slackService.sendNotification(title, slackMessage, type);
         }
-        await this.slackService.sendNotification(title, slackMessage, type);
 
         return saved;
     }
