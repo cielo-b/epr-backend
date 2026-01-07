@@ -101,6 +101,9 @@ export class User {
 
   @Column({ type: 'timestamp', nullable: true })
   resetTokenExpires: Date;
+
+  @Column({ nullable: true })
+  avatarUrl: string;
 }
 
 

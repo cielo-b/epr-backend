@@ -183,6 +183,13 @@ export class UsersService {
     return safeUser;
   }
 
+  async updateAvatar(id: string, avatarUrl: string) {
+    await this.usersRepository.update(id, { avatarUrl });
+    const user = await this.findOne(id);
+    const { password: _, ...safeUser } = user;
+    return safeUser;
+  }
+
   async remove(id: string) {
     await this.findOne(id);
     await this.usersRepository.delete(id);

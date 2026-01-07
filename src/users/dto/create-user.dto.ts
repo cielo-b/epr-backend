@@ -37,5 +37,10 @@ export class CreateUserDto {
   @ValidateNested({ each: true })
   @Type(() => CreatePermissionDto)
   permissions?: CreatePermissionDto[];
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  avatarUrl?: string;
 }
 

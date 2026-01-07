@@ -9,8 +9,15 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse, ApiConsumes, ApiBody } from '@nestjs/swagger';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
+import * as path from 'path';
+import * as fs from 'fs';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -20,12 +27,46 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { UserRole } from '../entities/user.entity';
 
+// Helper for file upload
+const uploadDir = path.join(process.cwd(), 'uploads', 'avatars');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+const storage = diskStorage({
+  destination: uploadDir,
+  filename: (req, file, cb) => {
+    const randomName = Array(32).fill(null).map(() => (Math.round(Math.random() * 16)).toString(16)).join('');
+    return cb(null, `${randomName}${extname(file.originalname)}`);
+  }
+});
+
 @ApiTags('users')
 @Controller('users')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @ApiBearerAuth()
 export class UsersController {
   constructor(private readonly usersService: UsersService) { }
+
+  @Post('profile-image')
+  @UseInterceptors(FileInterceptor('file', { storage }))
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
+  @ApiOperation({ summary: 'Upload profile image' })
+  async uploadProfileImage(@UploadedFile() file: Express.Multer.File, @CurrentUser() user: any) {
+    const url = `/uploads/avatars/${file.filename}`;
+    return this.usersService.updateAvatar(user.id, url);
+  }
 
   @Post()
   @Roles(UserRole.BOSS, UserRole.SUPERADMIN, UserRole.PROJECT_MANAGER)

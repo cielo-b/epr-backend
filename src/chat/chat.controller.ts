@@ -9,10 +9,11 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ChatGateway } from './chat.gateway';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
+import * as path from 'path';
 import * as fs from 'fs';
 
 // Helper for file upload
-const uploadDir = '/opt/mis/uploads/chats';
+const uploadDir = path.join(process.cwd(), 'uploads', 'chats');
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
 }

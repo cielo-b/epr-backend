@@ -32,7 +32,7 @@ export class DocumentsService {
     userId: string,
   ) {
     // Ensure upload directory exists
-    const uploadDir = '/opt/mis/uploads';
+    const uploadDir = path.join(process.cwd(), 'uploads');
     await fs.mkdir(uploadDir, { recursive: true });
 
     // Generate unique filename
