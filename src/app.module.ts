@@ -30,6 +30,8 @@ import { AnnouncementsModule } from './announcements/announcements.module';
 import { MilestonesModule } from './milestones/milestones.module';
 import { MeetingsModule } from './meetings/meetings.module';
 
+import { ProjectComponent } from './entities/project-component.entity';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -55,6 +57,7 @@ import { MeetingsModule } from './meetings/meetings.module';
           Announcement,
           Milestone,
           Meeting,
+          ProjectComponent,
         ],
         synchronize: true,
       }),

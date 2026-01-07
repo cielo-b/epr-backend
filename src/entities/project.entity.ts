@@ -13,6 +13,7 @@ import { Document } from './document.entity';
 import { Report } from './report.entity';
 import { Task } from './task.entity';
 import { Server } from './server.entity';
+import { ProjectComponent } from './project-component.entity';
 
 export enum ProjectStatus {
   PLANNING = 'PLANNING',
@@ -125,6 +126,9 @@ export class Project {
 
   @ManyToOne(() => Server, { nullable: true })
   productionServer?: Server;
+
+  @OneToMany(() => ProjectComponent, (component) => component.project)
+  components: ProjectComponent[];
 
   @Column({ type: 'text', nullable: true })
   envTemplate?: string;
