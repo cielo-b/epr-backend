@@ -30,7 +30,7 @@ export class DocumentsService {
     userId: string,
   ) {
     // Ensure upload directory exists
-    const uploadDir = process.env.UPLOAD_DEST || './uploads';
+    const uploadDir = process.env.UPLOAD_DEST || '/opt/mis/uploads';
     await fs.mkdir(uploadDir, { recursive: true });
 
     // Generate unique filename
