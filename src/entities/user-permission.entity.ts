@@ -2,13 +2,17 @@ import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDa
 import { User } from './user.entity';
 
 export enum PermissionResource {
-    PROJECT = 'PROJECT',
-    TASK = 'TASK',
-    DOCUMENT = 'DOCUMENT',
-    REPORT = 'REPORT',
-    COMMENT = 'COMMENT',
-    USER = 'USER',
-    ACTIVITY = 'ACTIVITY',
+    CLERGY = 'CLERGY',
+    MEMBERS = 'MEMBERS',
+    EXPENSES = 'EXPENSES',
+    EVENTS = 'EVENTS',
+    CONTRIBUTIONS = 'CONTRIBUTIONS',
+    SACRAMENTS = 'SACRAMENTS',
+    PRESBYTERIES = 'PRESBYTERIES',
+    PARISHES = 'PARISHES',
+    COMMUNITIES = 'COMMUNITIES',
+    SETTINGS = 'SETTINGS',
+    AUDIT_LOGS = 'AUDIT_LOGS',
 }
 
 export enum PermissionAction {

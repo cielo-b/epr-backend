@@ -4,7 +4,8 @@ import * as bcrypt from 'bcryptjs';
 import { UsersService } from '../users/users.service';
 import { LoginDto } from './dto/login.dto';
 import { ConfigService } from '@nestjs/config';
-import { UserRole } from '../entities/user.entity';
+import { EmailService } from '../email/email.service';
+import * as nodeCrypto from 'crypto';
 import { CreateSuperAdminDto } from './dto/create-superadmin.dto';
 
 @Injectable()
@@ -13,6 +14,7 @@ export class AuthService {
     private usersService: UsersService,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private emailService: EmailService,
   ) { }
 
   async validateUser(email: string, password: string): Promise<any> {
@@ -79,6 +81,22 @@ export class AuthService {
   async createSuperAdmin(dto: CreateSuperAdminDto) {
     this.ensureValidSuperadminKey(dto.superadminCreationKey);
     return this.usersService.createSuperAdmin(dto);
+  }
+
+  async forgotPassword(email: string) {
+    const user = await this.usersService.findByEmail(email);
+    if (!user) {
+      // Don't reveal if user exists
+      return { message: 'If this email exists, a password reset link has been sent.' };
+    }
+
+    const token = nodeCrypto.randomBytes(32).toString('hex');
+    const expires = new Date(Date.now() + 1 * 60 * 60 * 1000); // 1 hour
+
+    await this.usersService.saveResetToken(user.id, token, expires);
+    await this.emailService.sendPasswordResetEmail(user.email, token, user.firstName);
+
+    return { message: 'If this email exists, a password reset link has been sent.' };
   }
 
   async setPassword(token: string, newPassword: string) {

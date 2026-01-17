@@ -3,12 +3,15 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { UserPermission, PermissionResource, PermissionAction } from '../entities/user-permission.entity';
 import { CreatePermissionDto, UpdatePermissionDto, BulkCreatePermissionsDto } from './dto/permission.dto';
+import { User } from '../entities/user.entity';
 
 @Injectable()
 export class PermissionsService {
     constructor(
         @InjectRepository(UserPermission)
         private readonly permissionsRepository: Repository<UserPermission>,
+        @InjectRepository(User)
+        private readonly usersRepository: Repository<User>,
     ) { }
 
     /**
@@ -20,6 +23,7 @@ export class PermissionsService {
         action: PermissionAction,
         resourceId?: string,
     ): Promise<boolean> {
+        // 1. Check direct permissions
         const query = this.permissionsRepository
             .createQueryBuilder('permission')
             .where('permission.userId = :userId', { userId })
@@ -28,15 +32,38 @@ export class PermissionsService {
             .andWhere('(permission.expiresAt IS NULL OR permission.expiresAt > :now)', { now: new Date() });
 
         if (resourceId) {
-            // Check for specific resource permission OR general permission (resourceId is null)
             query.andWhere('(permission.resourceId = :resourceId OR permission.resourceId IS NULL)', { resourceId });
         } else {
-            // Only check general permissions
             query.andWhere('permission.resourceId IS NULL');
         }
 
-        const permission = await query.getOne();
-        return !!permission;
+        const directPermission = await query.getOne();
+        if (directPermission) return true;
+
+        // 2. Check Custom Role permissions
+        const user = await this.usersRepository.findOne({
+            where: { id: userId },
+            relations: ['customRole'],
+        });
+
+        if (user?.customRole) {
+            const rolePermissions = user.customRole.permissions as any[];
+            const modulePermission = rolePermissions.find(p => p.resource === resource);
+            if (modulePermission && (modulePermission.actions.includes(action) || modulePermission.actions.includes('ALL'))) {
+                // Scope Enforcement
+                if (user.customRole.level === 'SYNOD') return true;
+
+                // Check if the user's role scope matches their own assigned unit
+                // (e.g., if role is for PRESBYTERY, ensure user belongs to that presbytery)
+                if (user.customRole.level === 'PRESBYTERY' && user.presbyteryId !== user.customRole.targetId) return false;
+                if (user.customRole.level === 'PARISH' && user.parishId !== user.customRole.targetId) return false;
+                if (user.customRole.level === 'COMMUNITY' && user.communityId !== user.customRole.targetId) return false;
+
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -160,5 +187,27 @@ export class PermissionsService {
             query.resourceId = resourceId;
         }
         await this.permissionsRepository.delete(query);
+    }
+
+    /**
+     * Get scope constraints for a user to filter database queries
+     */
+    async getScopeConstraints(userId: string): Promise<{
+        level: 'SYNOD' | 'PRESBYTERY' | 'PARISH' | 'COMMUNITY' | 'NONE';
+        targetId?: string;
+    }> {
+        const user = await this.usersRepository.findOne({
+            where: { id: userId },
+            relations: ['customRole'],
+        });
+
+        if (!user?.customRole) {
+            return { level: 'NONE' };
+        }
+
+        return {
+            level: user.customRole.level as any,
+            targetId: user.customRole.targetId,
+        };
     }
 }

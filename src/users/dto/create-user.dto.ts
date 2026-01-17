@@ -5,7 +5,7 @@ import { UserRole } from '../../entities/user.entity';
 import { CreatePermissionDto } from './create-permission.dto';
 
 export class CreateUserDto {
-  @ApiProperty({ example: 'john.doe@rmsoft.com' })
+  @ApiProperty({ example: 'john.doe@epr.rw' })
   @IsEmail()
   email: string;
 
@@ -23,7 +23,7 @@ export class CreateUserDto {
   @IsString()
   lastName: string;
 
-  @ApiProperty({ enum: UserRole, example: UserRole.DEVELOPER })
+  @ApiProperty({ enum: UserRole, example: UserRole.MEMBER })
   @IsEnum(UserRole)
   role: UserRole;
 
@@ -42,5 +42,10 @@ export class CreateUserDto {
   @IsOptional()
   @IsString()
   avatarUrl?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  customRoleId?: string;
 }
 

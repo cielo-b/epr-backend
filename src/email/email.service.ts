@@ -33,26 +33,21 @@ export class EmailService {
     }
 
     async sendEmail(to: string, subject: string, text: string, html?: string) {
-        // If no credentials, just log (for dev/demo purposes if env vars missing)
         if (!this.configService.get<string>('SMTP_HOST')) {
             this.logger.log(`[Mock Email] To: ${to}, Subject: ${subject}`);
             return;
         }
 
         const from = this.configService.get<string>('SMTP_FROM') || this.configService.get<string>('SMTP_USER');
-
-        // Wrap content in branded template if no specific HTML is provided
-        // If HTML is provided, we assume it's just the body content and we wrap it too, 
-        // unless we want full control. For consistency, let's wrap everything.
         const content = html || `<p>${text.replace(/\n/g, '<br>')}</p>`;
         const brandedHtml = this.generateEmailTemplate(subject, content);
 
         try {
             await this.transporter.sendMail({
-                from: `"RMSoft MIS" <${from}>`,
+                from: `"EPR Church Management" <${from}>`,
                 to,
                 subject,
-                text, // Fallback text
+                text,
                 html: brandedHtml,
             });
             this.logger.log(`Email sent to ${to} from ${from}`);
@@ -62,21 +57,47 @@ export class EmailService {
     }
 
     async sendInvitation(email: string, token: string) {
-        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:4001';
-        const link = `${frontendUrl}/auth/set-password?token=${token}`;
-        const subject = 'Welcome to RMSoft MIS - Set your Password';
-
+        const resetLink = `${this.configService.get('FRONTEND_URL')}/auth/set-password?token=${token}`;
+        const subject = 'Invitation to EPR System';
         const content = `
-            <h2 style="color: #1f7a59; margin-top: 0;">Welcome to RMSoft MIS</h2>
-            <p style="font-size: 16px; color: #374151;">Your account has been created successfully. To get started, please set your password by clicking the button below:</p>
+            <h2 style="color: #008751; margin-top: 0;">You have been invited to the EPR System</h2>
+            <p style="font-size: 16px; color: #374151;">An account has been created for you. Please click the button below to set your password and access the system.</p>
             <div style="text-align: center; margin: 30px 0;">
-                <a href="${link}" style="background-color: #1f7a59; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px; display: inline-block;">Set Your Password</a>
+                <a href="${resetLink}" style="background-color: #008751; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px; display: inline-block;">Set Password</a>
             </div>
-            <p style="font-size: 14px; color: #6b7280; margin-top: 20px;">Or copy this link to your browser:</p>
-            <p style="font-size: 14px; color: #6b7280; word-break: break-all;">${link}</p>
+            <p style="font-size: 14px; color: #6b7280; margin-top: 20px;">If the button doesn't work, copy and paste this link into your browser:</p>
+            <p style="font-size: 12px; color: #4b5563; word-break: break-all;">${resetLink}</p>
         `;
+        await this.sendEmail(email, subject, `Invitation to EPR System`, content);
+    }
 
-        await this.sendEmail(email, subject, `Welcome! Set your password here: ${link}`, content);
+    async sendPasswordResetEmail(email: string, token: string, firstName: string) {
+        const resetLink = `${this.configService.get('FRONTEND_URL')}/auth/set-password?token=${token}`;
+        const subject = 'Password Reset Request';
+        const content = `
+            <h2 style="color: #008751; margin-top: 0;">Password Reset Request</h2>
+            <p style="font-size: 16px; color: #374151;">Hello ${firstName},</p>
+            <p style="font-size: 16px; color: #374151;">We received a request to reset your password for the EPR Church Management System. Click the button below to set a new password:</p>
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="${resetLink}" style="background-color: #008751; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px; display: inline-block;">Reset Password</a>
+            </div>
+            <p style="font-size: 14px; color: #6b7280; margin-top: 20px;">If you did not request this, you can safely ignore this email.</p>
+            <p style="font-size: 12px; color: #4b5563; word-break: break-all;">${resetLink}</p>
+        `;
+        await this.sendEmail(email, subject, `Password Reset Request`, content);
+    }
+
+    async sendWelcomeEmail(user: any) {
+        const subject = 'Welcome to EPR Church Management System';
+        const content = `
+            <h2 style="color: #008751; margin-top: 0;">Welcome to the Ministry, ${user.firstName}!</h2>
+            <p style="font-size: 16px; color: #374151;">Your account as a <b>${user.role}</b> has been successfully provisioned on the central church administration portal.</p>
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="${this.configService.get('FRONTEND_URL')}/login" style="background-color: #008751; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px; display: inline-block;">Access Your Portal</a>
+            </div>
+            <p style="font-size: 14px; color: #6b7280; margin-top: 20px;">Email: ${user.email}</p>
+        `;
+        await this.sendEmail(user.email, subject, `Welcome to EPR, ${user.firstName}!`, content);
     }
 
     private generateEmailTemplate(title: string, content: string): string {
@@ -89,27 +110,27 @@ export class EmailService {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${title}</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; margin: 0; padding: 0; background-color: #f3f4f6; color: #1f2937; }
-        .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); margin-top: 40px; margin-bottom: 40px; }
-        .header { background-color: #1f7a59; padding: 30px; text-align: center; }
-        .header h1 { color: #ffffff; margin: 0; font-size: 24px; font-weight: 600; letter-spacing: 0.5px; }
-        .content { padding: 40px 30px; }
-        .footer { background-color: #f9fafb; padding: 20px; text-align: center; font-size: 12px; color: #6b7280; border-top: 1px solid #e5e7eb; }
-        a { color: #1f7a59; text-decoration: none; }
-        a:hover { text-decoration: underline; }
+        body { font-family: 'Inter', sans-serif; line-height: 1.6; margin: 0; padding: 0; background-color: #f8fafc; color: #1e293b; }
+        .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); margin-top: 40px; margin-bottom: 40px; border: 1px solid #e2e8f0; }
+        .header { background: linear-gradient(135deg, #008751 0%, #005f39 100%); padding: 40px; text-align: center; }
+        .header h1 { color: #ffffff; margin: 0; font-size: 20px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; }
+        .content { padding: 40px; }
+        .footer { background-color: #f1f5f9; padding: 25px; text-align: center; font-size: 11px; color: #64748b; border-top: 1px solid #e2e8f0; }
+        .copyright { font-weight: bold; color: #475569; }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>RMSoft MIS</h1>
+            <h1>Eglise Presbyterienne au Rwanda</h1>
         </div>
         <div class="content">
             ${content}
         </div>
         <div class="footer">
-            <p>&copy; ${year} RMSoft Ltd. All rights reserved.</p>
-            <p>This is an automated message, please do not reply directly to this email.</p>
+            <p class="copyright">&copy; ${year} Eglise Presbyterienne au Rwanda (EPR)</p>
+            <p>Adminstrative Headquarters: Kigali, Rwanda</p>
+            <p>This is a secure automated notification from the EPR MIS Central Server.</p>
         </div>
     </div>
 </body>

@@ -9,6 +9,8 @@ import { VerifySuperAdminKeyDto } from './dto/verify-superadmin-key.dto';
 import { CreateSuperAdminDto } from './dto/create-superadmin.dto';
 import { SetPasswordDto } from './dto/set-password.dto';
 
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
@@ -19,6 +21,14 @@ export class AuthController {
   @ApiOperation({ summary: 'User login' })
   async login(@Body() loginDto: LoginDto) {
     return this.authService.login(loginDto);
+  }
+
+  @Public()
+  @Post('forgot-password')
+  @ApiOperation({ summary: 'Request password reset email' })
+  @ApiResponse({ status: 200, description: 'Reset email sent if user exists.' })
+  async forgotPassword(@Body() body: ForgotPasswordDto) {
+    return this.authService.forgotPassword(body.email);
   }
 
   @Public()

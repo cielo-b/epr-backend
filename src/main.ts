@@ -38,8 +38,8 @@ async function bootstrap() {
 
   // Swagger documentation
   const config = new DocumentBuilder()
-    .setTitle('RMSoft MIS API')
-    .setDescription('Management Information System API for RMSoft')
+    .setTitle('EPR Church Management System API')
+    .setDescription('System API for Eglise Presbyterienne au Rwanda')
     .setVersion('1.0')
     .addBearerAuth()
     .build();

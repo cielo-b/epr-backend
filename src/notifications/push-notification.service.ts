@@ -16,7 +16,7 @@ export class PushNotificationService {
     ) {
         const vapidPublicKey = this.configService.get<string>('VAPID_PUBLIC_KEY');
         const vapidPrivateKey = this.configService.get<string>('VAPID_PRIVATE_KEY');
-        const vapidSubject = this.configService.get<string>('VAPID_SUBJECT') || 'mailto:admin@rmsoft.rw';
+        const vapidSubject = this.configService.get<string>('VAPID_SUBJECT') || 'mailto:admin@epr.rw';
 
         if (vapidPublicKey && vapidPrivateKey) {
             webpush.setVapidDetails(

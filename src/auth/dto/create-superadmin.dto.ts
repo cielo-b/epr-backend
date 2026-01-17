@@ -2,7 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { IsEmail, IsNotEmpty, IsString, MinLength } from 'class-validator';
 
 export class CreateSuperAdminDto {
-  @ApiProperty({ example: 'admin@rmsoft.com' })
+  @ApiProperty({ example: 'admin@epr.rw' })
   @IsEmail()
   email: string;
 

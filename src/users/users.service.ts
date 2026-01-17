@@ -100,7 +100,7 @@ export class UsersService {
   async findAll() {
     return this.usersRepository.find({
       where: { role: Not(UserRole.SUPERADMIN) },
-      relations: ['createdBy', 'permissions'],
+      relations: ['createdBy', 'permissions', 'customRole'],
       order: { createdAt: 'DESC' },
     });
   }
@@ -108,7 +108,7 @@ export class UsersService {
   async findOne(id: string) {
     const user = await this.usersRepository.findOne({
       where: { id },
-      relations: ['createdBy', 'permissions'],
+      relations: ['createdBy', 'permissions', 'customRole'],
     });
 
     if (!user) {
@@ -135,6 +135,13 @@ export class UsersService {
     await this.usersRepository.update(userId, {
       resetToken: null,
       resetTokenExpires: null,
+    });
+  }
+
+  async saveResetToken(userId: string, token: string, expires: Date) {
+    await this.usersRepository.update(userId, {
+      resetToken: token,
+      resetTokenExpires: expires,
     });
   }
 

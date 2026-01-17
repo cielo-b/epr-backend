@@ -15,7 +15,7 @@ export class PermissionsController {
         const requestingUser = req.user;
         if (
             requestingUser.id !== userId &&
-            ![UserRole.SUPERADMIN, UserRole.BOSS, UserRole.PROJECT_MANAGER].includes(requestingUser.role)
+            ![UserRole.SUPERADMIN, UserRole.CHURCH_PRESIDENT, UserRole.CHURCH_SECRETARY].includes(requestingUser.role)
         ) {
             throw new Error('Unauthorized');
         }
@@ -26,7 +26,7 @@ export class PermissionsController {
     @Post()
     async create(@Body() createDto: CreatePermissionDto, @Request() req) {
         // Only admins can create permissions
-        if (![UserRole.SUPERADMIN, UserRole.BOSS, UserRole.PROJECT_MANAGER].includes(req.user.role)) {
+        if (![UserRole.SUPERADMIN, UserRole.CHURCH_PRESIDENT, UserRole.CHURCH_SECRETARY].includes(req.user.role)) {
             throw new Error('Unauthorized');
         }
 
@@ -36,7 +36,7 @@ export class PermissionsController {
     @Post('bulk')
     async bulkCreate(@Body() bulkDto: BulkCreatePermissionsDto, @Request() req) {
         // Only admins can create permissions
-        if (![UserRole.SUPERADMIN, UserRole.BOSS, UserRole.PROJECT_MANAGER].includes(req.user.role)) {
+        if (![UserRole.SUPERADMIN, UserRole.CHURCH_PRESIDENT, UserRole.CHURCH_SECRETARY].includes(req.user.role)) {
             throw new Error('Unauthorized');
         }
 
@@ -46,7 +46,7 @@ export class PermissionsController {
     @Patch(':id')
     async update(@Param('id') id: string, @Body() updateDto: UpdatePermissionDto, @Request() req) {
         // Only admins can update permissions
-        if (![UserRole.SUPERADMIN, UserRole.BOSS, UserRole.PROJECT_MANAGER].includes(req.user.role)) {
+        if (![UserRole.SUPERADMIN, UserRole.CHURCH_PRESIDENT, UserRole.CHURCH_SECRETARY].includes(req.user.role)) {
             throw new Error('Unauthorized');
         }
 
@@ -56,7 +56,7 @@ export class PermissionsController {
     @Delete(':id')
     async delete(@Param('id') id: string, @Request() req) {
         // Only admins can delete permissions
-        if (![UserRole.SUPERADMIN, UserRole.BOSS, UserRole.PROJECT_MANAGER].includes(req.user.role)) {
+        if (![UserRole.SUPERADMIN, UserRole.CHURCH_PRESIDENT, UserRole.CHURCH_SECRETARY].includes(req.user.role)) {
             throw new Error('Unauthorized');
         }
 
@@ -67,7 +67,7 @@ export class PermissionsController {
     @Delete('user/:userId')
     async deleteAllUserPermissions(@Param('userId') userId: string, @Request() req) {
         // Only admins can delete all permissions
-        if (![UserRole.SUPERADMIN, UserRole.BOSS, UserRole.PROJECT_MANAGER].includes(req.user.role)) {
+        if (![UserRole.SUPERADMIN, UserRole.CHURCH_PRESIDENT, UserRole.CHURCH_SECRETARY].includes(req.user.role)) {
             throw new Error('Unauthorized');
         }
 

@@ -8,23 +8,47 @@ import {
   UpdateDateColumn,
   ManyToMany,
 } from 'typeorm';
-import { Project } from './project.entity';
-import { ProjectAssignment } from './project-assignment.entity';
-import { Report } from './report.entity';
-import { Task } from './task.entity';
 import { Notification } from './notification.entity';
 import { UserPermission } from './user-permission.entity';
 import { PushSubscription } from './push-subscription.entity';
+import { CustomRole } from './custom-role.entity';
 
 export enum UserRole {
-  BOSS = 'BOSS',
-  SUPERADMIN = 'SUPERADMIN',
-  SECRETARY = 'SECRETARY',
-  PROJECT_MANAGER = 'PROJECT_MANAGER',
-  DEVOPS = 'DEVOPS',
-  DEVELOPER = 'DEVELOPER',
-  VISITOR = 'VISITOR',
-  OTHER = 'OTHER',
+  // SYSTEM LEVEL
+  SUPERADMIN = 'SUPERADMIN', // System administrator
+
+  // GENERAL SYNOD LEVEL (Whole Church)
+  CHURCH_PRESIDENT = 'CHURCH_PRESIDENT', // President (Rev. Dr. Pascal Bataringaya)
+  CHURCH_VICE_PRESIDENT = 'CHURCH_VICE_PRESIDENT', // Vice President
+  CHURCH_SECRETARY = 'CHURCH_SECRETARY', // General Secretary
+  CHURCH_ACCOUNTANT = 'CHURCH_ACCOUNTANT', // General Accountant/Treasurer
+  CHURCH_WORKER = 'CHURCH_WORKER', // Other workers at General Synod level
+
+  // PRESBYTERY LEVEL
+  PRESBYTERY_MODERATOR = 'PRESBYTERY_MODERATOR', // Moderator of Presbytery
+  PRESBYTERY_VICE_MODERATOR = 'PRESBYTERY_VICE_MODERATOR', // Vice Moderator
+  PRESBYTERY_SECRETARY = 'PRESBYTERY_SECRETARY', // Presbytery Secretary
+  PRESBYTERY_ACCOUNTANT = 'PRESBYTERY_ACCOUNTANT', // Presbytery Accountant
+  PRESBYTERY_WORKER = 'PRESBYTERY_WORKER', // Other workers at Presbytery level
+
+  // PARISH LEVEL
+  PARISH_PASTOR = 'PARISH_PASTOR', // Pastor of the Parish
+  PARISH_VICE_PASTOR = 'PARISH_VICE_PASTOR', // Vice Pastor/Assistant Pastor
+  PARISH_SECRETARY = 'PARISH_SECRETARY', // Parish Secretary
+  PARISH_ACCOUNTANT = 'PARISH_ACCOUNTANT', // Parish Accountant/Treasurer
+  PARISH_WORKER = 'PARISH_WORKER', // Other workers at Parish level
+
+  // COMMUNITY LEVEL
+  COMMUNITY_LEADER = 'COMMUNITY_LEADER', // Community Elder/Leader
+  COMMUNITY_ASSISTANT = 'COMMUNITY_ASSISTANT', // Assistant Community Leader
+
+  // CLERGY & SPECIAL ROLES
+  REVEREND = 'REVEREND', // Ordained Reverend
+  DEACON = 'DEACON', // Deacon
+  EVANGELIST = 'EVANGELIST', // Evangelist
+
+  // GENERAL MEMBER
+  MEMBER = 'MEMBER', // Regular church member
 }
 
 @Entity()
@@ -47,7 +71,7 @@ export class User {
   @Column({
     type: 'enum',
     enum: UserRole,
-    default: UserRole.OTHER,
+    default: UserRole.MEMBER,
   })
   role: UserRole;
 
@@ -69,24 +93,6 @@ export class User {
   @OneToMany(() => User, (user) => user.createdBy)
   createdUsers: User[];
 
-  @OneToMany(() => Project, (project) => project.manager)
-  managedProjects: Project[];
-
-  @OneToMany(() => ProjectAssignment, (assignment) => assignment.developer)
-  assignedProjects: ProjectAssignment[];
-
-  @OneToMany(() => Project, (project) => project.creator)
-  createdProjects: Project[];
-
-  @OneToMany(() => Report, (report) => report.createdBy)
-  reports: Report[];
-
-  @OneToMany(() => Task, (task) => task.createdBy)
-  createdTasks: Task[];
-
-  @ManyToMany(() => Task, (task) => task.assignees)
-  assignedTasks: Task[];
-
   @OneToMany(() => Notification, (notification) => notification.user)
   notifications: Notification[];
 
@@ -102,8 +108,25 @@ export class User {
   @Column({ type: 'timestamp', nullable: true })
   resetTokenExpires: Date;
 
+  // EPR Organizational Scope - Links user to their level in the church hierarchy
+  @Column({ nullable: true })
+  presbyteryId?: string;
+
+  @Column({ nullable: true })
+  parishId?: string;
+
+  @Column({ nullable: true })
+  communityId?: string;
+
   @Column({ nullable: true })
   avatarUrl: string;
+
+  // Dynamic RBAC
+  @Column({ nullable: true })
+  customRoleId?: string;
+
+  @ManyToOne(() => CustomRole, (role) => role.users, { nullable: true })
+  customRole?: CustomRole;
 }
 
 

@@ -69,10 +69,10 @@ export class UsersController {
   }
 
   @Post()
-  @Roles(UserRole.BOSS, UserRole.SUPERADMIN, UserRole.PROJECT_MANAGER)
-  @ApiOperation({ summary: 'Create a new user (Boss/Superadmin/PM only)' })
+  @Roles(UserRole.SUPERADMIN, UserRole.CHURCH_PRESIDENT, UserRole.CHURCH_SECRETARY)
+  @ApiOperation({ summary: 'Create a new user (Admins/Church Leaders only)' })
   @ApiResponse({ status: 201, description: 'User created successfully' })
-  @ApiResponse({ status: 403, description: 'Forbidden - Only Boss/Superadmin/PM can create users' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Only Admins/Church Leaders can create users' })
   async create(@Body() createUserDto: CreateUserDto, @CurrentUser() user: any) {
     return this.usersService.create(createUserDto, user.id);
   }

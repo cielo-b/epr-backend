@@ -29,7 +29,7 @@ export class SlackService {
                     color: colorMap[type] || '#36a64f',
                     title: title,
                     text: message,
-                    footer: 'RMSoft MIS Notification',
+                    footer: 'EPR System Notification',
                     ts: Math.floor(Date.now() / 1000),
                 },
             ],

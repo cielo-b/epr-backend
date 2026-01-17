@@ -37,35 +37,24 @@ export class PermissionGuard implements CanActivate {
         }
 
         // Admins bypass permission checks
-        if ([UserRole.SUPERADMIN, UserRole.BOSS, UserRole.PROJECT_MANAGER].includes(user.role)) {
+        if (user.role === UserRole.SUPERADMIN) {
             return true;
         }
 
-        // For VISITOR role, check granular permissions
-        if (user.role === UserRole.VISITOR) {
-            const resourceId = request.params.id || request.params.projectId || request.params.taskId;
-            const hasPermission = await this.permissionsService.hasPermission(
-                user.id,
-                permission.resource,
-                permission.action,
-                resourceId,
-            );
+        // For all other roles, check granular permissions (direct or via CustomRole)
+        const resourceId = request.params.id || request.params.projectId || request.params.taskId;
+        const hasPermission = await this.permissionsService.hasPermission(
+            user.id,
+            permission.resource,
+            permission.action,
+            resourceId,
+        );
 
-            if (!hasPermission) {
-                throw new ForbiddenException('Insufficient permissions');
-            }
-
-            // Attach permission constraints to request for further filtering
-            const constraints = await this.permissionsService.getPermissionConstraints(
-                user.id,
-                permission.resource,
-                permission.action,
-                resourceId,
-            );
-            request.permissionConstraints = constraints;
-
-            return true;
+        if (!hasPermission) {
+            throw new ForbiddenException(`Insufficient permissions for ${permission.resource}:${permission.action}`);
         }
+
+        return true;
 
         // For other roles, use existing role-based logic
         return true;
