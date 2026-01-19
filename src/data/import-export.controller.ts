@@ -27,7 +27,7 @@ export class ImportExportController {
     })
     @UseInterceptors(FileInterceptor('file'))
     async importData(
-        @Param('module') module: 'members' | 'clergy' | 'expenses',
+        @Param('module') module: 'members' | 'clergy' | 'expenses' | 'presbyteries' | 'parishes',
         @UploadedFile() file: Express.Multer.File,
         @GetUser() user: User
     ) {
@@ -44,6 +44,10 @@ export class ImportExportController {
             headers = ['clergyNumber', 'firstName', 'lastName', 'rank', 'phone', 'email', 'ordinationDate'];
         } else if (module === 'expenses') {
             headers = ['voucherNumber', 'category', 'description', 'amount', 'payeeName', 'date'];
+        } else if (module === 'presbyteries') {
+            headers = ['name', 'description', 'location', 'region', 'leaderName', 'leaderPhone', 'leaderEmail', 'officeAddress', 'officePhone', 'officeEmail'];
+        } else if (module === 'parishes') {
+            headers = ['name', 'code', 'description', 'presbyteryId', 'location', 'district', 'sector', 'pastorName', 'pastorEmail', 'pastorPhone', 'administratorName', 'churchAddress', 'churchPhone', 'churchEmail', 'foundedDate'];
         }
 
         const templateData = [headers.reduce((acc, h) => ({ ...acc, [h]: '' }), {})];
