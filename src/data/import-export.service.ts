@@ -5,6 +5,8 @@ import { Repository } from 'typeorm';
 import { Member } from '../entities/member.entity';
 import { Clergy } from '../entities/clergy.entity';
 import { Expense } from '../entities/expense.entity';
+import { Presbytery } from '../entities/presbytery.entity';
+import { Parish } from '../entities/parish.entity';
 import { AuditService } from '../audit/audit.service';
 
 @Injectable()
@@ -13,6 +15,8 @@ export class ImportExportService {
         @InjectRepository(Member) private memberRepo: Repository<Member>,
         @InjectRepository(Clergy) private clergyRepo: Repository<Clergy>,
         @InjectRepository(Expense) private expenseRepo: Repository<Expense>,
+        @InjectRepository(Presbytery) private presbyteryRepo: Repository<Presbytery>,
+        @InjectRepository(Parish) private parishRepo: Repository<Parish>,
         private auditService: AuditService,
     ) { }
 
@@ -98,7 +102,7 @@ export class ImportExportService {
         });
     }
 
-    async importFromExcel(fileBuffer: Buffer, module: 'members' | 'clergy' | 'expenses', actorId: string): Promise<any> {
+    async importFromExcel(fileBuffer: Buffer, module: 'members' | 'clergy' | 'expenses' | 'presbyteries' | 'parishes', actorId: string): Promise<any> {
         const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
         const sheetName = workbook.SheetNames[0];
         const sheet = workbook.Sheets[sheetName];
@@ -118,6 +122,10 @@ export class ImportExportService {
                     await this.clergyRepo.save(this.clergyRepo.create(row));
                 } else if (module === 'expenses') {
                     await this.expenseRepo.save(this.expenseRepo.create(row));
+                } else if (module === 'presbyteries') {
+                    await this.presbyteryRepo.save(this.presbyteryRepo.create(row));
+                } else if (module === 'parishes') {
+                    await this.parishRepo.save(this.parishRepo.create(row));
                 }
                 results.success++;
             } catch (err) {

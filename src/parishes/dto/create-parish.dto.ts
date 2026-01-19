@@ -6,9 +6,10 @@ export class CreateParishDto {
     @IsString()
     name: string;
 
-    @ApiProperty({ description: 'Unique parish code' })
+    @ApiPropertyOptional({ description: 'Unique parish code (auto-generated if not provided)' })
+    @IsOptional()
     @IsString()
-    code: string;
+    code?: string;
 
     @ApiPropertyOptional({ description: 'Description of the parish' })
     @IsOptional()

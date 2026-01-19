@@ -13,6 +13,17 @@ export class ParishesService {
     ) { }
 
     async create(createParishDto: CreateParishDto): Promise<Parish> {
+        // Auto-generate code if not provided
+        if (!createParishDto.code) {
+            const count = await this.parishRepository.count();
+            const prefix = createParishDto.name
+                .split(' ')
+                .map(word => word.charAt(0).toUpperCase())
+                .join('')
+                .substring(0, 3);
+            createParishDto.code = `${prefix}${String(count + 1).padStart(3, '0')}`;
+        }
+
         const parish = this.parishRepository.create(createParishDto);
         return await this.parishRepository.save(parish);
     }
